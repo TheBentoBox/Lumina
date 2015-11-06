@@ -71,17 +71,17 @@ game.windowManager = (function(){
 	
 	// FUNCTION: make a new button
 	function makeButton(uiName, butName, offsetX, offsetY, width, height, clickEvent){
-		uiElements.find(uiName).buttons.push(new button(uiName, butName, offsetX, offsetY, width, height, clickEvent));
+		uiElements.find(uiName).subElements.push(new Button(uiName, butName, offsetX, offsetY, width, height, clickEvent));
 	}
 	
 	// FUNCTION: make a new bar
 	function makeBar(uiName, barName, offsetX, offsetY, width, height, tgtVar, tgtMax, tgtMin){
-		uiElements.find(uiName).bars.push(new bar(uiName, barName, offsetX, offsetY, width, height, tgtVar, tgtMax, tgtMin));
+		uiElements.find(uiName).subElements.push(new Bar(uiName, barName, offsetX, offsetY, width, height, tgtVar, tgtMax, tgtMin));
 	}
 	
 	// FUNCTION: make a new text box
 	function makeText(uiName, textName, offsetX, offsetY, width, height, string, css, color){
-		uiElements.find(uiName).texts.push(new text(uiName, textName, offsetX, offsetY, width, height, string, css, color));
+		uiElements.find(uiName).subElements.push(new Text(uiName, textName, offsetX, offsetY, width, height, string, css, color));
 	}
 	
 	// FUNCTION: modify UI variables
@@ -91,19 +91,25 @@ game.windowManager = (function(){
 			case("all"):
 				elem.setName(args.name);
 				elem.setPosition(args.xPos, args,yPos);
-				elem.setSize(args.width, args.height);
+				elem.setBounds(args.width, args.height);
 				elem.setBorder(args.color, args.width);
 				elem.setFill(args.color);
 				elem.setImage(args.image);
+				for(var i=0; i < this.subElements.length; i++){
+					subElements[i].updatePosition();
+				}
 				break;
 			case("name"):
 				elem.setName(args.name);
 				break;
 			case("position"):
 				elem.setPosition(args.xPos, args,yPos);
+				for(var i=0; i < this.subElements.length; i++){
+					subElements[i].updatePosition();
+				}
 				break;
-			case("size"):
-				elem.setSize(args.width, args.height);
+			case("bounds"):
+				elem.setBounds(args.width, args.height);
 				break;
 			case("border"):
 				elem.setBorder(args.color, args.width);
@@ -123,12 +129,12 @@ game.windowManager = (function(){
 	}
 	
 	// FUNCTION: forcibly deactivates UI element
-	function deactivate(name){
+	function deactivateUI(name){
 		uiElements.find(name).deactivate();
 	};
 	
 	// FUNCTION: forcibly activate UI element
-	function activate(name){
+	function activateUI(name){
 		uiElements.find(name).activate();
 	};
 		
@@ -137,29 +143,57 @@ game.windowManager = (function(){
 		uiElements.find(name).togglePause();
 	}
 	
+	// FUNCTION: forcibly activate UI pausing
+	function activateUIPausing(name){
+		uiElements.find(name).activatePause();
+	};
+	
+	// FUNCTION: forcibly deactivate UI pausing
+	function deactivateUIPausing(name){
+		uiElements.find(name).deactivatePause();
+	};
+	
+	// FUNCTION: toggle element
+	function toggleElement(uiName, elemName){
+		uiElements.find(uiName).subElements.find(elemName).toggleActive();
+	}
+	
+	// FUNCTION: forcibly deactivate subelement
+	function deactivateElement(uiName, elemName){
+		uiElements.find(uiName).subElements.find(elemName).deactivate();
+	}
+	
+	// FUNCTION: forcibly activate subelement
+	function activateElement(uiName, elemName){
+		uiElements.find(uiName).subElements.find(elemName).activate();
+	}
+	
 	// FUNCTION: modify button variables
 	function modifyButton(uiName, buttonName, varName, args){
-		var but = uiElements.find(uiName).buttons.find(buttonName);
+		var but = uiElements.find(uiName).subElements.find(buttonName);
 		switch(varName){
 			case("all"):
 				but.setName(args.name);
-				but.setOffset(args.xPos, args,yPos);
-				but.setSize(args.width, args.height);
+				but.setOffset(args.xOff, args,yOff);
+				but.setBounds(args.width, args.height);
 				but.setBorder(args.color, args.width);
 				but.setFill(args.color);
 				but.setImage(args.image);
 				but.setText(args.string, args.css, args.color);
-				but.setClick(args.event);
-				but.setHover(args.event);
+				but.setClick(args.click);
+				but.setHover(args.hover);
 				break;
 			case("name"):
 				but.setName(args.name);
 				break;
 			case("offset"):
-				but.setOffset(args.xPos, args,yPos);
+				but.setOffset(args.xOff, args.yOff);
 				break;
-			case("size"):
-				but.setSize(args.width, args.height);
+			case("position"):
+				but.setPosition(args.xPos, args.yPos);
+				break;
+			case("bounds"):
+				but.setBounds(args.width, args.height);
 				break;
 			case("border"):
 				but.setBorder(args.color, args.width);
@@ -174,31 +208,39 @@ game.windowManager = (function(){
 				but.setText(args.string, args.css, args.color);
 				break;
 			case("click"):
-				but.setClick(args.event);
+				but.setClick(args.click);
 				break;
 			case("hover"):
-				but.setHover(args.event);
+				but.setHover(args.hover);
 				break;
 		}
 	}
 	
-	// FUNCTION: toggle button
-	function toggleButton(uiName, buttonName){
-		uiElements.find(uiName).buttons.find(buttonName).toggleActive();
-	}
-	
 	//FUNCTION: modify status bar variables
 	function modifyBar(uiName, barName, varName, args){
-		var bar = uiElements.find(uiName).bars.find(barName);
+		var bar = uiElements.find(uiName).subElements.find(barName);
 		switch(varName){
+			case("all"):
+				bar.setName(args.name);
+				bar.setOffset(args.xOff, args,yOff);
+				bar.setBounds(args.width, args.height);
+				bar.setBorder(args.color, args.width);
+				bar.setFill(args.color);
+				bar.setImage(args.image);
+				bar.setText(args.string, args.css, args.color);
+				bar.setTarget(args.tgtVar, args.tgtMax, args.tgtMin);
+				break;
 			case("name"):
 				bar.setName(args.name);
 				break;
 			case("offset"):
-				bar.setOffset(args.xPos, args,yPos);
+				bar.setOffset(args.xOff, args,yOff);
 				break;
-			case("size"):
-				bar.setSize(args.width, args.height);
+			case("position"):
+				but.setPosition(args.xPos, args.yPos);
+				break;
+			case("bounds"):
+				bar.setBounds(args.width, args.height);
 				break;
 			case("border"):
 				bar.setBorder(args.color, args.width);
@@ -218,29 +260,37 @@ game.windowManager = (function(){
 		}
 	}
 	
-	// FUNCTION: toggle bar
-	function toggleBar(uiName, barName){
-		uiElements.find(uiName).bars.find(barName).toggleActive();
-	}
-	
 	// FUNCTION: modify text variables
 	function modifyText(uiName, textName, varName, args){
-		var text = uiElements.find(uiName).texts.find(textName);
+		var text = uiElements.find(uiName).subElements.find(textName);
 		switch(varName){
+			case("all"):
+				text.setName(args.name);
+				text.setOffset(args.xOff, args,yOff);
+				text.setBounds(args.width, args.height);
+				text.setBorder(args.color, args.width);
+				text.setFill(args.color);
+				text.setImage(args.image);
+				text.setText(args.string, args.css, args.color);
+				text.setTarget(args.targets);
+				break;
 			case("name"):
 				text.setName(args.name);
 				break;
 			case("offset"):
-				text.setOffset(args.xPos, args,yPos);
+				bar.setOffset(args.xOff, args,yOff);
 				break;
-			case("size"):
-				text.setSize(args.width, args.height);
+			case("position"):
+				but.setPosition(args.xPos, args.yPos);
+				break;
+			case("bounds"):
+				bar.setBounds(args.width, args.height);
 				break;
 			case("border"):
 				text.setBorder(args.color, args.width);
 				break;
-			case("spacing"):
-				text.setSpacing(args.top, args.right, args.bottom, args.left, args.line);
+			case("padding"):
+				text.setPadding(args.top, args.right, args.bottom, args.left, args.line);
 			case("fill"):
 				text.setFill(args.color);
 				break;
@@ -255,11 +305,6 @@ game.windowManager = (function(){
 		}
 	}
 	
-	// FUNCTION: toggle text
-	function toggleText(uiName, textName){
-		uiElements.find(uiName).texts.find(textName).toggleActive();
-	}
-	
 	// CLASS: user interface object
 	var UI = function(name, xPos, yPos, width, height) {
 		// element name
@@ -268,8 +313,8 @@ game.windowManager = (function(){
 		// base position of UI element
 		this.position = new Victor(xPos, yPos);
 		
-		// element size
-		this.size = new Victor(width, height);
+		// element bounds
+		this.bounds = new Victor(width, height);
 		
 		// border styling
 		this.border = {
@@ -282,11 +327,9 @@ game.windowManager = (function(){
 		this.isActive = false; 			// if the element is active and displayed
 		this.doesPause = false; 		// if the element pauses the game when active
 		
-		this.buttons = [];			// array of contained buttons
-		this.bars = [];				// array of status bars
-		this.texts = [];			// array of text boxes
+		this.subElements = [];
 		// FUNCTION: find named object in array
-		this.buttons.find = this.bars.find = this.texts.find = function(name){
+		this.subElements.find = function(name){
 			for(var i=0; i < this.length; i++){
 				if(this[i].name == name){return this[i]};
 			};
@@ -304,8 +347,8 @@ game.windowManager = (function(){
 		};
 		
 		// MUTATOR: set up bounding rectangle
-		this.setSize = function(width, height){
-			this.size = new Victor(width, height);
+		this.setBounds = function(width, height){
+			this.bounds = new Victor(width, height);
 		};
 		
 		// MUTATOR: set border
@@ -342,6 +385,16 @@ game.windowManager = (function(){
 		this.togglePause = function(){
 			this.doesPause = !this.doesPause;
 		};
+		
+		// FUNCTION: forcibly activate pausing
+		this.activatePause = function(){
+			this.doesPause = true;
+		};
+		
+		// FUNCTION: forcibly deactivate pausing
+		this.deactivatePause = function(){
+			this.doesPause = false;
+		};
 		//} UI MODIFIERS
 		
 		// FUNCTION: update and draw UI element
@@ -350,14 +403,14 @@ game.windowManager = (function(){
 				// fill color
 				if (this.fillColor != ""){
 					ctx.fillStyle = this.fillColor;
-					ctx.fillRect(this.position.x, this.position.y, this.size.x, this.size.y);
+					ctx.fillRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
 				}
 				
 				// stroke border
 				if(this.border.color != ""){
 					ctx.strokeStyle = this.border.color;
 					ctx.lineWidth = this.border.width;
-					ctx.strokeRect(this.position.x, this.position.y, this.size.x, this.size.y);
+					ctx.strokeRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
 				}
 				
 				// draw image
@@ -367,36 +420,23 @@ game.windowManager = (function(){
 				
 				// update tracked variables
 				for(var i=0; i < trackers.length; i++){
-					var bar = this.bars.find(trackers[i].name);
-					var text = this.texts.find(trackers[i].name);
-					if(bar != null){
+					var elem = this.subElements.find(trackers[i].name);
+					if(elem != null){
+						elem.trackers = trackers[i].value;
 						bar.target.value = trackers[i].value;
 					}
-					if(text != null){
-						text.trackers = trackers[i].value;
-					}
 				}
 				
-				// update and draw buttons
-				for(var i=0; i < this.buttons.length; i++){
-					this.buttons[i].updateAndDraw();
-				}
-				
-				// update and draw bars
-				for(var i=0; i < this.bars.length; i++){
-					this.bars[i].updateAndDraw();
-				}
-				
-				// update and draw text
-				for(var i=0; i < this.texts.length; i++){
-					this.texts[i].updateAndDraw();
+				// update and draw elements
+				for(var i=0; i < this.subElements.length; i++){
+					this.subElements[i].updateAndDraw();
 				}
 			}		
 		};
 	};
 	
 	// CLASS: button object
-	var button = function(parentName, name, offsetX, offsetY, width, height, clickEvent) {
+	var Button = function(parentName, name, offsetX, offsetY, width, height, clickEvent) {
 		// reference names
 		this.parentName = parentName;
 		this.name = name;
@@ -404,8 +444,14 @@ game.windowManager = (function(){
 		// offset from base UI element
 		this.offset = new Victor(offsetX, offsetY);
 		
-		// button size
-		this.size = new Victor(width, height);
+		// position of the parent element
+		this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+		
+		// global position of subelement
+		this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		
+		// button bounds
+		this.bounds = new Victor(width, height);
 		
 		// border styling
 		this.border = {
@@ -415,7 +461,7 @@ game.windowManager = (function(){
 		
 		this.fillColor = "gray";		// background fill color
 		this.image = new Image();		// background image
-		this.isActive = false; 			// if the element is active and displayed
+		this.isActive = true; 			// if the element is active and displayed
 		
 		// text on button
 		this.text = {
@@ -429,29 +475,28 @@ game.windowManager = (function(){
 		
 		// FUNCTION: update and draw button if active
 		this.updateAndDraw = function() {
-			if (this.isActive) {	
-				var par = uiElements.find(this.parentName);
+			if (this.isActive) {
 				// fill color
 				if(this.fillColor != ""){
 					ctx.fillStyle = this.fillColor;
-					ctx.fillRect(par.position.x + this.offset.x, par.position.y + this.offset.y, this.size.x, this.size.y);
+					ctx.fillRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
 				}
 				
 				// stroke border
 				if(this.border.color != ""){
 					ctx.strokeStyle = this.border.color;
 					ctx.lineWidth = this.border.width;
-					ctx.strokeRect(par.position.x + this.offset.x, par.position.y + this.offset.y, this.size.x, this.size.y);
+					ctx.strokeRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
 				}
 				
 				// draw image
 				if(this.image.src != null){
-					ctx.drawImage(this.image, par.position.x + this.offset.x, par.position.y + this.offset.y);
+					ctx.drawImage(this.image, this.position.x, this.position.y);
 				}
 				
 				// print text
 				if (this.text.string != "") {
-					fillText(ctx, this.text.string, (par.position.x + this.offset.x + this.size.x / 2), (par.position.y + this.offset.y + this.size.y / 2), this.text.css, this.text.color);
+					fillText(ctx, this.text.string, (this.position.x + this.bounds.x / 2), (this.position.y + this.bounds.y / 2), this.text.css, this.text.color);
 				}
 			}
 		}
@@ -462,47 +507,62 @@ game.windowManager = (function(){
 			this.name = newName;
 		}
 		
-		// MUTATOR: set button offset
+		// MUTATOR: set offset
 		this.setOffset = function(xOffset, yOffset){
 			this.offset = new Victor(offsetX, offsetY);
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
 		}
 		
-		// MUTATOR: set button size
-		this.setSize = function(width, height){
-			this.size = new Victor(width, height);
+		// MUTATOR: set position
+		this.setPosition = function(xPos, yPos){
+			this.position = new Victor(xPos, yPos);
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.offset = new Victor(position.x - parPosition.x, position.y - parPosition.y);
 		}
 		
-		// MUTATOR: set button border styling
+		// FUNCTION: update position from parent
+		this.updatePos = function(){
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		}
+		
+		// MUTATOR: set bounds
+		this.setBounds = function(width, height){
+			this.bounds = new Victor(width, height);
+		}
+		
+		// MUTATOR: set border styling
 		this.setBorder = function(color, width){
 			this.border = {color:color, width:width};
 		}
 		
-		// MUTATOR: set button color
+		// MUTATOR: set color
 		this.setFill = function(color){
 			this.fillColor = color;
 		}
 		
-		// MUTATOR: set button image
+		// MUTATOR: set image
 		this.setImage = function(image){
 			this.image = image;
 		}
 		
-		// MUTATOR: set button text
+		// MUTATOR: set text
 		this.setText = function(string, css, color){
 			this.text = {string:string, css:css, color:color};
 		}
 		
-		// MUTATOR: set button click event
+		// MUTATOR: set click event
 		this.setClick = function(event){
 			this.onClick = event;
 		}
 		
-		// MUTATOR: set button hover event
+		// MUTATOR: set hover event
 		this.setHover = function(event){
 			this.onHover = event;
 		}
 		
-		// FUNCTION: toggle whether button is active
+		// FUNCTION: toggle whether is active
 		this.toggleActive = function(){
 			this.isActive = !this.isActive;
 		}
@@ -520,7 +580,7 @@ game.windowManager = (function(){
 	};
 	
 	// CLASS: status bar object
-	var bar = function(parentName, name, offsetX, offsetY, width, height, tgtVar, tgtMax, tgtMin) {
+	var Bar = function(parentName, name, offsetX, offsetY, width, height, tgtVar, tgtMax, tgtMin) {
 		// reference name
 		this.parentName = parentName;
 		this.name = name;
@@ -528,8 +588,14 @@ game.windowManager = (function(){
 		// offset from base UI element
 		this.offset = new Victor(offsetX, offsetY);
 		
-		// bar size
-		this.size = new Victor(width, height);
+		// position of the parent element
+		this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+		
+		// global position of subelement
+		this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		
+		// bar bounds
+		this.bounds = new Victor(width, height);
 		
 		// border styling
 		this.border = {
@@ -549,11 +615,13 @@ game.windowManager = (function(){
 			fore: new Image()
 		}
 		
-		this.isActive = false; 			// if the element is active and displayed
+		this.isActive = true; 			// if the element is active and displayed
 		
-		// variable to be tracked by bar
+		// value of tracked variable
+		this.trackers = tgtVar;
+		
+		// variable bounds to be tracked by bar
 		this.target = {
-			value: tgtVar,
 			max: tgtMax,
 			min: tgtMin,
 		}
@@ -568,88 +636,103 @@ game.windowManager = (function(){
 		// FUNCTION: update and draw bar if active
 		this.updateAndDraw = function() {
 			if (this.isActive){	
-				var par = uiElements.find(this.parentName);
 				// percent fill of bar
-				var percent = clamp(this.target.value / (this.target.max - this.target.min), 0.0, 1.0);
+				var percent = clamp(this.trackers / (this.target.max - this.target.min), 0.0, 1.0);
 				
 				// fill background color
 				if(this.color.back != ""){
 					ctx.fillStyle = this.color.back;
-					ctx.fillRect(par.position.x + this.offset.x, par.position.y + this.offset.y, this.size.x, this.size.y);
+					ctx.fillRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
 				}
 				
 				// stroke border
 				if(this.border.color != ""){
 					ctx.strokeStyle = this.border.color;
 					ctx.lineWidth = this.border.width;
-					ctx.strokeRect(par.position.x + this.offset.x, par.position.y + this.offset.y, this.size.x, this.size.y);
+					ctx.strokeRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
 				}
 				
 				// fill foreground color
 				if(this.color.fore != ""){
 					ctx.fillStyle = this.color.fore;
-					ctx.fillRect(par.position.x + this.offset.x, par.position.y + this.offset.y, this.size.x * percent, this.size.y);
+					ctx.fillRect(this.position.x, this.position.y, this.bounds.x * percent, this.bounds.y);
 				}
 				
 				// draw background image
 				if(this.image.back.src != null){
-					ctx.drawImage(this.image.back, par.position.x + this.offset.x, par.position.y + this.offset.y);
+					ctx.drawImage(this.image.back, this.position.x, this.position.y);
 				}
 				
 				// draw foreground image
 				if(this.image.fore.src != ""){
-					ctx.drawImage(this.image.fore, 0, 0, this.size.x * percent, this.size.y, par.position.x + this.offset.x, par.position.y + this.offset.y, this.size.x * percent, this.size.y);
+					ctx.drawImage(this.image.fore, 0, 0, this.bounds.x * percent, this.bounds.y, this.position.x, this.position.y, this.bounds.x * percent, this.bounds.y);
 				}
 				// print text
 				if(this.text.string != "") {
-					fillText(ctx, this.text.string, (par.postition.x + this.offset.x + this.size.x / 2), (par.position.y + this.offset.y + this.size.y / 2), this.text.css, this.text.color);
+					fillText(ctx, this.text.string, (this.position.x + this.bounds.x / 2), (this.position.y + this.bounds.y / 2), this.text.css, this.text.color);
 				}
 			}
 		}
 		
 		//{ BAR FUNCTIONS
-		// MUTATOR: set bar name
+		// MUTATOR: set name
 		this.setName = function(newName){
 			this.name = newName;
 		}
 		
-		// MUTATOR: set bar offset
+		// MUTATOR: set offset
 		this.setOffset = function(xOffset, yOffset){
 			this.offset = new Victor(offsetX, offsetY);
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
 		}
 		
-		// MUTATOR: set bar size
-		this.setSize = function(width, height){
-			this.size = new Victor(width, height);
+		// MUTATOR: set position
+		this.setPosition = function(xPos, yPos){
+			this.position = new Victor(xPos, yPos);
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.offset = new Victor(position.x - parPosition.x, position.y - parPosition.y);
 		}
 		
-		// MUTATOR: set bar border styling
+		// FUNCTION: update position from parent
+		this.updatePos = function(){
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		}
+		
+		// MUTATOR: set bounds
+		this.setBounds = function(width, height){
+			this.bounds = new Victor(width, height);
+		}
+		
+		// MUTATOR: set border styling
 		this.setBorder = function(color, width){
 			this.border = {color:color, width:width};
 		}
 		
-		// MUTATOR: set bar color
+		// MUTATOR: set color
 		this.setFill = function(backColor, foreColor){
 			this.color = {back: backColor, fore: foreColor};
 		}
 		
-		// MUTATOR: set bar image
+		// MUTATOR: set image
 		this.setImage = function(backImage, foreImage){
 			this.image.back = backImage;
 			this.image.fore = foreImage;
 		}
 		
-		// MUTATOR: set bar text
+		// MUTATOR: set text
 		this.setText = function(string, css, color){
 			this.text = {string:string, css:css, color:color};
 		}
 		
-		// MUTATOR: set bar target
+		// MUTATOR: set target
 		this.setTarget = function(tgtVar, tgtMax, tgtMin){
-			this.target = {value: tgtVar, max: tgtMax, min: tgtMin};
+			this.trackers = tgtVar;
+			this.target = {max: tgtMax, min: tgtMin};
 		}
 		
-		// FUNCTION: toggle whether bar is active
+		// FUNCTION: toggle whether is active
 		this.toggleActive = function(){
 			this.isActive = !this.isActive;
 		}
@@ -667,7 +750,7 @@ game.windowManager = (function(){
 	}
 
 	// CLASS: text box object
-	var text = function(parentName, name, offsetX, offsetY, width, height, string, css, color) {
+	var Text = function(parentName, name, offsetX, offsetY, width, height, string, css, color) {
 		// reference name
 		this.parentName = parentName;
 		this.name = name;
@@ -675,11 +758,16 @@ game.windowManager = (function(){
 		// offset from base UI element
 		this.offset = new Victor(offsetX, offsetY);
 		
-		// text box size
-		var w = width, h = height;
-		if (w === "default") w = ctx.measureText(string).width;
-		if (h === "default") h = w*1.5;
-		this.size = new Victor(w, h);
+		// position of the parent element
+		this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+		
+		// global position of subelement
+		this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		
+		// text box bounds
+		this.bounds = new Victor(width, height);
+		if (this.bounds.x === "default") this.bounds.x = ctx.measureText(string).width;
+		if (this.bounds.y === "default") this.bounds.y = this.bounds.x*1.5;
 		
 		// border styling
 		this.border = {
@@ -687,8 +775,8 @@ game.windowManager = (function(){
 			width: 0,
 		};
 		
-		// text spacing
-		this.spacing = {
+		// text padding
+		this.padding = {
 			top: 0,
 			right: 0,
 			bottom: 0,
@@ -703,7 +791,7 @@ game.windowManager = (function(){
 		this.image = new Image();
 		
 		// if the element is active and displayed
-		this.isActive = false; 
+		this.isActive = true; 
 		
 		// text
 		this.text = {
@@ -719,23 +807,22 @@ game.windowManager = (function(){
 		// FUNCTION: update and draw if active
 		this.updateAndDraw = function() {
 			if (this.isActive){		
-				var par = uiElements.find(this.parentName);
 				// fill background color
 				if(this.color != "") {
 					ctx.fillStyle = this.color;
-					ctx.fillRect(par.position.x + this.offset.x, par.position.y + this.offset.y, this.size.x, this.size.y);
+					ctx.fillRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
 				}
 				
 				// stroke border
 				if(this.border.color != ""){
 					ctx.strokeStyle = this.border.color;
 					ctx.lineWidth = this.border.width;
-					ctx.strokeRect(par.position.x + this.offset.x, par.position.y + this.offset.y, this.size.x, this.size.y);
+					ctx.strokeRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
 				}
 				
 				// draw background image
 				if(this.image != null){
-					ctx.drawImage(this.image, par.position.x + this.offset.x, par.position.y + this.offset.y);
+					ctx.drawImage(this.image, this.position.x, this.position.y);
 				}
 				// update formatted text
 				if(this.trackers.length != 0){
@@ -777,13 +864,13 @@ game.windowManager = (function(){
 							// wrap down to next line if the current word:
 							// 1 - would go outside the textbox (xPos + it's width > box size - padding)
 							// 2 - isn't wider than the textbox on its own (xPos > 0 - only wraps if it's not the first word)
-							if (xPos + measured.width > this.size.x - this.spacing.left - this.spacing.right && xPos > 0) {
+							if (xPos + measured.width > this.bounds.x - this.padding.left - this.padding.right && xPos > 0) {
 								++line;
 								xPos = 0;
 							}
 							
 							// draw the text
-							ctx.fillText(subtext, par.position.x + this.offset.x + this.spacing.left + xPos, par.position.y + this.offset.y + this.spacing.top + (height*line));
+							ctx.fillText(subtext, this.position.x + this.padding.left + xPos, this.position.y + this.padding.top + (height*line));
 							// update drawing variables
 							xPos += measured.width; // slide draw position over
 							str = str.substr(i);    // cut out the word we just drew from the string
@@ -804,20 +891,36 @@ game.windowManager = (function(){
 		// MUTATOR: set offset
 		this.setOffset = function(xOffset, yOffset){
 			this.offset = new Victor(offsetX, offsetY);
-		};
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		}
 		
-		// MUTATOR: set size
-		this.setSize = function(width, height){
-			this.size = new Victor(width, height);
-		};
+		// MUTATOR: set position
+		this.setPosition = function(xPos, yPos){
+			this.position = new Victor(xPos, yPos);
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.offset = new Victor(position.x - parPosition.x, position.y - parPosition.y);
+		}
+		
+		// FUNCTION: update position from parent
+		this.updatePos = function(){
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		}
+		
+		// MUTATOR: set bounds
+		this.setBounds = function(width, height){
+			this.bounds = new Victor(width, height);
+		}
 		
 		// MUTATOR: set border styling
 		this.setBorder = function(color, width){
 			this.border = {color:color, width:width};
 		};
 		
-		this.setSpacing = function(top, right, bottom, left, line){
-			this.spacing = {top:top, right:right, bottom:bottom, left:left, line:line};
+		// MUTATOR: set text padding
+		this.setPadding = function(top, right, bottom, left, line){
+			this.padding = {top:top, right:right, bottom:bottom, left:left, line:line};
 		};
 		
 		// MUTATOR: set color
@@ -844,6 +947,16 @@ game.windowManager = (function(){
 		this.toggleActive = function(){
 			this.isActive = !this.isActive;
 		};
+		
+		// FUNCTION: forcibly deactivates the element
+		this.deactivate = function(){
+			this.isActive = false;
+		};
+		
+		// FUNCTION: forcibly activate the element
+		this.activate = function(){
+			this.isActive = true;
+		};
 		//} TEXT FUNCTIONS
 	}
 	
@@ -857,14 +970,16 @@ game.windowManager = (function(){
 		makeText: makeText,
 		modifyUI: modifyUI,
 		toggleUI: toggleUI,
-		activate: activate,
-		deactivate: deactivate,
+		activateUI: activateUI,
+		deactivateUI: deactivateUI,
 		toggleUIPausing: toggleUIPausing,
+		activateUIPausing: activateUIPausing,
+		deactivateUIPausing: deactivateUIPausing,
+		toggleElement: toggleElement,
+		deactivateElement: deactivateElement,
+		activateElement: activateElement,
 		modifyButton: modifyButton,
-		toggleButton: toggleButton,
 		modifyBar: modifyBar,
-		toggleBar: toggleBar,
 		modifyText: modifyText,
-		toggleText: toggleText
 	}
 }());
