@@ -297,6 +297,7 @@ game.windowManager = (function(){
 				break;
 			case("text"):
 				text.setText(args.string, args.css, args.color);
+				console.log(args.string);
 				break;
 			case("target"):
 				text.setTarget(args.targets);
@@ -853,10 +854,10 @@ game.windowManager = (function(){
 					
 					// loop through letters
 					for(var i = 0; i < str.length; i++){
-						// if currently looped character is a space or we've reached the end of the string, draw the word
-						if (str.charAt(i) == " " || i == str.length - 1) {
+						// if currently looped character is a space or endline, or we've reached the end of the string, draw the word
+						if (str.charAt(i) == " " || (str.charAt(i) == "%" && str.charAt(i+1) == "n") || i == str.length - 1) {
 							// get the current word
-							var subtext = str.substr(0, i+1);
+							var subtext = ((str.charAt(i) == "%" && str.charAt(i+1)) ? str.substr(0, i) : str.substr(0, i+1));
 							var measured = ctx.measureText(subtext);
 							
 							// wrap down to next line if the current word:
@@ -868,10 +869,18 @@ game.windowManager = (function(){
 							}
 							
 							// draw the text
-							ctx.fillText(subtext, this.position.x + this.padding.left + xPos, this.position.y + this.padding.top + (height*line));
-							// update drawing variables
-							xPos += measured.width; // slide draw position over
-							str = str.substr(i);    // cut out the word we just drew from the string
+							ctx.fillText(subtext, this.position.x + this.padding.left + xPos, this.position.y + this.padding.top + ((height + this.padding.line)*line));
+							// update new line
+							if (str.charAt(i) == "%" && str.charAt(i+1) == "n") {
+								++line;
+								xPos = 0;
+								str = str.substr(i+2);
+							}
+							else {
+								// update drawing variables
+								xPos += measured.width; // slide draw position over
+								str = str.substr(i);    // cut out the word we just drew from the string
+							}
 							i = 0;					// start at the beginning of the new substring
 						}
 					}

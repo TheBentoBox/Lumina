@@ -344,9 +344,40 @@ game.engine = (function(){
 		windowManager.modifyButton("titleScreen", "startButton", "fill", {color: "#3C3C3C"});
 		windowManager.modifyButton("titleScreen", "startButton", "border", {color: "#222", width: 4});
 		windowManager.modifyButton("titleScreen", "startButton", "text", {string: "Start", css: "24pt 'Uncial Antiqua'", color: "rgb(250, 255, 195)"});
+		// instructions button
+		windowManager.makeButton("titleScreen", "instructionButton", 250, 5*canvas.height/6, canvas.width/5, canvas.height/12, function() {windowManager.toggleUI("titleScreen"); windowManager.toggleUI("instructionScreen");});
+		windowManager.modifyButton("titleScreen", "instructionButton", "fill", {color: "#3C3C3C"});
+		windowManager.modifyButton("titleScreen", "instructionButton", "border", {color: "#222", width: 4});
+		windowManager.modifyButton("titleScreen", "instructionButton", "text", {string: "Instructions", css: "24pt 'Uncial Antiqua'", color: "rgb(250, 255, 195)"});
 		// game title
 		windowManager.makeText("titleScreen", "title", 50, 50, "default", "default", "Lumina", "40pt 'Uncial Antiqua'", "rgb(250, 255, 195)");
 		windowManager.toggleUI("titleScreen");
+		
+		//== Register Instructions Screen ==//
+		windowManager.makeUI("instructionScreen", 0, 0, canvas.width, canvas.height);
+		var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+		grad.addColorStop(0, "rgb(0, 0, 50)");
+		grad.addColorStop(1, "rgb(10, 10, 10)");
+		windowManager.modifyUI("instructionScreen", "fill", {color: grad});
+		// instruction text
+		windowManager.makeText("instructionScreen", "title", 50, 50, "default", "default", "Instructions", "40pt 'Uncial Antiqua'", "rgb(250, 255, 195)");
+		windowManager.makeText("instructionScreen", "instructions", 80, 130, canvas.width - 50, "default", 
+			"A/D:      Move left/right%n" +
+			"1/2/3:     Cast spell element%n" +
+			"Space:    Jump%n" +
+			"Mouse:   Aim spell%n" +
+			"LMB:     Launch spell%n" +
+			"Bolt:      A ranged projectile cast toward the mouse%n" +
+			"Rune:     A trap rune cast on the ground that triggers when an enemy steps on it%n" +
+			"Grenade: A lobbed projectile tossed toward the mouse that bounces and explodes on contact with an enemy%n", 
+			"20pt 'Uncial Antiqua'", "rgb(250, 255, 195)"
+		);
+		windowManager.modifyText("instructionScreen", "instructions", "padding", {top: 0, right: 0, bottom: 0, left: 0, line: 20});
+		// back button
+		windowManager.makeButton("instructionScreen", "backButton", canvas.width * 7/8 - 50, 5*canvas.height/6, canvas.width/8, canvas.height/12, function() {windowManager.toggleUI("instructionScreen"); windowManager.toggleUI("titleScreen");});
+		windowManager.modifyButton("instructionScreen", "backButton", "fill", {color: "#3C3C3C"});
+		windowManager.modifyButton("instructionScreen", "backButton", "border", {color: "#222", width: 4});
+		windowManager.modifyButton("instructionScreen", "backButton", "text", {string: "Back", css: "24pt 'Uncial Antiqua'", color: "rgb(250, 255, 195)"});
 		
 		//== Register In-Game Spell Type HUD ==//
 		windowManager.makeUI("controlsHUD", 10, 5, canvas.width/4, 90);
@@ -361,6 +392,12 @@ game.engine = (function(){
 		windowManager.makeText("controlsHUD2", "spellElement4", 0, 60, 150, "default", "3 - Earth", "14pt 'Uncial Antiqua'", "white");
 		windowManager.makeUI("controlsHUD3", 10, 5, canvas.width/4, 90);
 		windowManager.makeText("controlsHUD3", "cast1", 0, 0, 250, "default", "Click to cast", "14pt 'Uncial Antiqua'", "white");
+		
+		//== Register Spell Cast HUD ==//
+		windowManager.makeUI("spellHUD", 0, canvas.height * 7/8, canvas.width / 4, canvas.height / 8);
+		windowManager.modifyUI("spellHUD", "fill", {color: "#3C3C3C"});
+		windowManager.modifyUI("spellHUD", "border", {color: "#222", width: 4});
+		windowManager.makeText("spellHUD", "spellCast", 80, 35, canvas.width / 4 - 10, canvas.height / 8 - 10, "", "14pt 'Uncial Antiqua'", "white");
 		
 		// BEGIN main game tick
 		update();
@@ -394,6 +431,7 @@ game.engine = (function(){
 		//== Load the level ==//
 		loadLevel();
 		windowManager.activateUI("controlsHUD");
+		windowManager.activateUI("spellHUD");
 		
 		//== Reset entities ==//
 		particles = [];
@@ -811,6 +849,7 @@ game.engine = (function(){
 		this.offset = new Victor(0, 7); 		// player's image offset
 		this.spellType = "";					// the spell type of the player's current spell
 		this.spellElement = "";					// the element of the player's current spell
+		this.spellString = "";					// string naming the current spell
 		this.cooldown = 0;						// cooldown, determines whether a spell can be cast
 		
 		// set up image-dependent variables once the image loads
@@ -851,20 +890,24 @@ game.engine = (function(){
 						windowManager.deactivateUI("controlsHUD");
 						windowManager.activateUI("controlsHUD2");
 						this.spellType = "bolt";
+						this.spellName = "Bolt";
 						break;
 					// pressed 2 - rune spell
 					case KEY.TWO:
 						windowManager.deactivateUI("controlsHUD");
 						windowManager.activateUI("controlsHUD2");
 						this.spellType = "rune";
+						this.spellName = "Rune";
 						break;
 					// pressed 3 - grenade spell
 					case KEY.THREE:
 						windowManager.deactivateUI("controlsHUD");
 						windowManager.activateUI("controlsHUD2");
 						this.spellType = "grenade";
+						this.spellName = "Grenade";
 						break;
 				}
+				windowManager.modifyText("spellHUD", "spellCast", "text", {string: this.spellName, css: "14pt 'Uncial Antiqua'", color: "white"});
 			}
 			else
 			// if spell element isn't set, set based on which key was pressed
@@ -875,20 +918,24 @@ game.engine = (function(){
 						windowManager.deactivateUI("controlsHUD2");
 						windowManager.activateUI("controlsHUD3");
 						this.spellElement = "fire";
+						this.spellName += " of Fire";
 						break;
 					// pressed 2 - water spell
 					case KEY.TWO:
 						windowManager.deactivateUI("controlsHUD2");
 						windowManager.activateUI("controlsHUD3");
 						this.spellElement = "water";
+						this.spellName += " of Water";
 						break;
 					// pressed 3 - earth spell
 					case KEY.THREE:
 						windowManager.deactivateUI("controlsHUD2");
 						windowManager.activateUI("controlsHUD3");
 						this.spellElement = "earth";
+						this.spellName += " of Earth";
 						break;
 				}
+				windowManager.modifyText("spellHUD", "spellCast", "text", {string: this.spellName, css: "14pt 'Uncial Antiqua'", color: "white"});
 			}
 			
 			// cast spell if both type and element are set and the function was told to cast the spell
@@ -953,6 +1000,8 @@ game.engine = (function(){
 				//this.cooldown = type.cooldown;
 				this.spellType = "";
 				this.spellElement = "";
+				this.spellName = "";
+				windowManager.modifyText("spellHUD", "spellCast", "text", {string: this.spellName, css: "14pt 'Uncial Antiqua'", color: "white"});
 			}
 		}
 		
