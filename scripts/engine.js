@@ -8,11 +8,12 @@ game.engine = (function(){
 	console.log("loaded engine.js module");
 	
 	/* VARIABLES */
-	// SCREEN AND AUDIO VARIABLES
+	//== SCREEN AND AUDIO VARIABLES ==//{
 	var windowManager = game.windowManager; // reference to the engine's window manager
 	var bgAudio;				// audio player reference for background audio
 	var sfxPlayer;				// audio player reference for sound effects
 	var canvas,ctx;				// canvas references
+	var offCanvas, offCtx;		// offscreen canvas references
 	var mouseX, mouseY;			// mouse coordinates
 	var animationID;			// stores animation ID of animation frame
 	var paused = false;			// if the game is paused
@@ -22,22 +23,23 @@ game.engine = (function(){
 	var lastTime = (+new Date); // used with calculateDeltaTime
 	var dt = 0;					// delta time
 	var time = 0;
+	//}
 	
-	// ASSETS
+	//== ASSETS ==//{
 	var background = new Image();
 	var cloud = new Image();
 	var star = new Image();
+	//}
 	
-	// GAME VARIABLES
-	// General
+	//== GAME VARIABLES ==//{
+	//== General
 	var GAME_STATE = {			// "enum" of the current status of the game
 		START: 0,				// start screen
 		IDLE: 1,				// level is sitting idly
 		CASTING: 2,				// player is in the process of building a spell
-		ATTACKING: 3,			// a spell is being executed
-		BETWEEN: 4,				// between level upgrade
-		DEAD: 5,				// game over screen
-		HIGHSCORE: 6			// viewing the high score table
+		BETWEEN: 3,				// between level upgrade
+		DEAD: 4,				// game over screen
+		HIGHSCORE: 5			// viewing the high score table
 	}
 	var currentGameState = GAME_STATE.START; // what is currently happening in the game
 	var currentLevel = 0;		// what level the player is on
@@ -45,15 +47,17 @@ game.engine = (function(){
 	var experience = 0;			// increases like score, but can be spent for upgrades
 	var score = 0;				// current score, = number of terrain objects passed
 	var highScores = [];		// array of high scores when they're loaded in
+	var postProcesses = [];		// an array that stores callbacks to object draws that should be called after shading is applied
+	//
 	
-	// Player
-	var player = {}			// the player object
-	// Level
+	//== Player
+	var player = {};			// the player object
+	//== Level
 	var TERRAIN_WIDTH = 100;	// width of a terrain tile
 	var TERRAIN_HEIGHT = 0; 	// height of terrain from the bottom of the screen
 	var level = [];				// array storing the map of the current level
 	var screenX = 0;			// current horizontal position of camera in level
-	// Enemies
+	//== Enemies
 	var enemies = [];
 	var ENEMY_TYPES = {
 		GATOR: {
@@ -81,27 +85,13 @@ game.engine = (function(){
 			AI: "flying"
 		}
 	}
-	// Projectiles
-	var projectiles = [];
-	var PROJECTILE_TYPES = {
-		ARROW: {
-			strength: function() { return 3 + ranger.abilities.Q.level; },
-			img: new Image(),
-			width: 45,
-			height: 13,
-			gravity: true,
-			velocity: 2
-		},
-		FIREBALL: {
-			strength: function() { return Math.min(8, 1 + currentLevel); },
-			img: new Image(),
-			width: 40,
-			height: 40,
-			gravity: false,
-			velocity: -30
-		}
-	}
-	// Particle Systems
+	//== Light Sources
+	var lightSources = [];
+	// helper functions
+	var globalFire = function() { return {r: 225, g: 175, b: 20}; };
+	var globalWater = function() { return {r: 20, g: 100, b: 200}; };
+	var globalEarth = function() { return {r: 20, g: 200, b: 50}; };
+	//== Particle Systems
 	var particleSystems = [];
 	var particles = [];
 	var PARTICLE_TYPES = {		// enum storing particle type info
@@ -111,23 +101,168 @@ game.engine = (function(){
 			vel: function() { return new Victor(rand(-1, 1), rand(-1, 1)); },
 			img: new Image()
 		},
-		ICE: {
+		WATERDRIP: {
 			collidesTerrain: true,
 			gravity: true,
-			vel: function() { return new Victor(rand(10, 30), rand(-10, -30)); },
+			vel: function() { return new Victor(0, 1); },
 			img: new Image()
 		},
-		FROST: {
+		EARTH: {
+			collidesTerrain: true,
+			gravity: true,
+			vel: function() { return new Victor(rand(-1, 1), rand(-5, 1)); },
+			img: new Image()
+		},
+		FLAMEFOUNTAIN: {
 			collidesTerrain: false,
 			gravity: false,
-			vel: function() { return new Victor(-globalGameSpeed + rand(-0.5, 0.5), rand(-0.5, 0.5)); },
+			vel: function() { return new Victor(rand(-1, 1), rand(-5, -10)); },
+			img: new Image()
+		},
+		WATERFOUNTAIN: {
+			collidesTerrain: true,
+			gravity: true,
+			vel: function() { return new Victor(rand(-1, 1), rand(-5, -22)); },
+			img: new Image()
+		},
+		EARTHFOUNTAIN: {
+			collidesTerrain: true,
+			gravity: true,
+			vel: function() { return new Victor(rand(-1, 1), rand(-5, -22)); },
 			img: new Image()
 		}
 	}
+	//== Projectiles
+	var projectiles = [];
+	var PROJECTILE_TYPES = {
+		FIREBOLT: {
+			strength: 15,
+			img: new Image(),
+			width: 40,
+			height: 40,
+			gravity: false,
+			velocity: 15,
+			cooldown: 30,
+			color: globalFire(),
+			particle: PARTICLE_TYPES.FLAME,
+			particleLifetime: 6,
+			particlesPerFrame: 3
+		},
+		WATERBOLT: {
+			strength: 9,
+			img: new Image(),
+			width: 40,
+			height: 40,
+			gravity: false,
+			velocity: 22,
+			cooldown: 20,
+			color: globalWater(),
+			particle: PARTICLE_TYPES.WATERDRIP,
+			particleLifetime: 20,
+			particlesPerFrame: 1
+		},
+		EARTHBOLT: {
+			strength: 27,
+			img: new Image(),
+			width: 40,
+			height: 40,
+			gravity: true,
+			velocity: 20,
+			cooldown: 60,
+			color: globalEarth(),
+			particle: PARTICLE_TYPES.EARTH,
+			particleLifetime: -1,
+			particlesPerFrame: 0.1
+		},
+		FIREGRENADE: {
+			strength: 15,
+			img: new Image(),
+			width: 55,
+			height: 55,
+			gravity: true,
+			velocity: 13,
+			cooldown: 90,
+			color: globalFire(),
+			particle: PARTICLE_TYPES.FLAME,
+			particleLifetime: 6,
+			particlesPerFrame: 3
+		},
+		WATERGRENADE: {
+			strength: 12,
+			img: new Image(),
+			width: 75,
+			height: 75,
+			gravity: true,
+			velocity: 15,
+			cooldown: 60,
+			color: globalWater(),
+			particle: PARTICLE_TYPES.WATERDRIP,
+			particleLifetime: 20,
+			particlesPerFrame: 1
+		},
+		EARTHGRENADE: {
+			strength: 20,
+			img: new Image(),
+			width: 65,
+			height: 65,
+			gravity: true,
+			velocity: 10,
+			cooldown: 110,
+			color: globalEarth(),
+			particle: PARTICLE_TYPES.EARTH,
+			particleLifetime: -1,
+			particlesPerFrame: 0.1
+		}
+	}
+	//== Runes
+	var RUNE_TYPES = {
+		FIRE: {
+			width: 130,
+			strength: 15,
+			color: globalFire(),
+			particle: PARTICLE_TYPES.FLAMEFOUNTAIN,
+			particleLifetime: -1,
+			particlesPerFrame: 3
+		},
+		WATER: {
+			width: 100,
+			strength: 25,
+			color: globalWater(),
+			particle: PARTICLE_TYPES.WATERFOUNTAIN,
+			particleLifetime: -1,
+			particlesPerFrame: 1
+		},
+		EARTH: {
+			width: 160,
+			strength: 10,
+			color: globalEarth(),
+			particle: PARTICLE_TYPES.EARTHFOUNTAIN,
+			particleLifetime: -1,
+			particlesPerFrame: 0.1
+		}
+	}
+	var runes = [];
+	//}
 	
-	// PHYSICS VARIABLES
-	var GRAVITY = 60;			// global gravity - this*dt added to velocity.y
+	//== PHYSICS VARIABLES ==//
+	var GRAVITY = 40;			// global gravity - this*dt added to velocity.y
 	var inControl = function() { return currentGameState === GAME_STATE.IDLE || currentGameState === GAME_STATE.CASTING; }
+	
+	//== GLOBAL HELPERS! ==//
+	//== Array Safe Splice
+	// Doesn't splice the last index if -1 is passed as index
+	// Has better compatibility with indexOf, which returns -1 if the objec isn't found
+	Array.prototype.safeSplice = function (index, amount) {
+		if (index >= 0)
+			this.splice(index, amount);
+	}
+	//== Color Literal to string
+	// Many objects use object literals for rgb values
+	// This converts them easily to an rgb() string
+	function colorString(objLiteral, alpha) {
+		return "rgba(" + objLiteral.r + ", " + objLiteral.g + ", " + objLiteral.b + ", " + alpha + ")";
+	}
+	
 	
 	
 	// Set up canvas and game variables
@@ -136,7 +271,13 @@ game.engine = (function(){
 		// canvas
 		canvas = document.querySelector('canvas');
 		ctx = canvas.getContext("2d");
-		TERRAIN_HEIGHT = canvas.height - 150; // set terrain height now that canvas is loaded
+		// offscreen canvas
+		offCanvas = document.createElement("canvas");
+		offCanvas.width = canvas.width; offCanvas.height = canvas.height;
+		offCtx = offCanvas.getContext("2d");
+		
+		// set terrain height now that canvas is loaded
+		TERRAIN_HEIGHT = canvas.height - 150;
 		
 		// get reference to audio element
 		bgAudio = document.querySelector('#bgAudio');
@@ -159,6 +300,10 @@ game.engine = (function(){
 				if (currentGameState === GAME_STATE.DEAD) {
 					setupGame();
 				}
+				
+				// if the player is alive and not casting, attempt a spell cast
+				if (currentGameState === GAME_STATE.IDLE)
+					player.cast("cast", getMouse(e));
 			}
 		}.bind(this));
 		// compatibility for touch devices
@@ -199,11 +344,23 @@ game.engine = (function(){
 		windowManager.modifyButton("titleScreen", "startButton", "fill", {color: "#3C3C3C"});
 		windowManager.modifyButton("titleScreen", "startButton", "border", {color: "#222", width: 4});
 		windowManager.modifyButton("titleScreen", "startButton", "text", {string: "Start", css: "24pt 'Uncial Antiqua'", color: "rgb(250, 255, 195)"});
-		// title
+		// game title
 		windowManager.makeText("titleScreen", "title", 50, 50, "default", "default", "Lumina", "40pt 'Uncial Antiqua'", "rgb(250, 255, 195)");
-		windowManager.toggleText("titleScreen", "title");
-		windowManager.toggleButton("titleScreen", "startButton");
 		windowManager.toggleUI("titleScreen");
+		
+		//== Register In-Game Spell Type HUD ==//
+		windowManager.makeUI("controlsHUD", 10, 5, canvas.width/4, 90);
+		windowManager.makeText("controlsHUD", "spellType1", 0, 0, 250, "default", "Press to choose type: ", "14pt 'Uncial Antiqua'", "white");
+		windowManager.makeText("controlsHUD", "spellType2", 0, 20, 150, "default", "1 - Bolt", "14pt 'Uncial Antiqua'", "white");
+		windowManager.makeText("controlsHUD", "spellType3", 0, 40, 150, "default", "2 - Rune", "14pt 'Uncial Antiqua'", "white");
+		windowManager.makeText("controlsHUD", "spellType4", 0, 60, 150, "default", "3 - Grenade", "14pt 'Uncial Antiqua'", "white");
+		windowManager.makeUI("controlsHUD2", 10, 5, canvas.width/4, 90);
+		windowManager.makeText("controlsHUD2", "spellElement1", 0, 0, 300, "default", "Press to choose element: ", "14pt 'Uncial Antiqua'", "white");
+		windowManager.makeText("controlsHUD2", "spellElement2", 0, 20, 150, "default", "1 - Fire", "14pt 'Uncial Antiqua'", "white");
+		windowManager.makeText("controlsHUD2", "spellElement3", 0, 40, 150, "default", "2 - Water", "14pt 'Uncial Antiqua'", "white");
+		windowManager.makeText("controlsHUD2", "spellElement4", 0, 60, 150, "default", "3 - Earth", "14pt 'Uncial Antiqua'", "white");
+		windowManager.makeUI("controlsHUD3", 10, 5, canvas.width/4, 90);
+		windowManager.makeText("controlsHUD3", "cast1", 0, 0, 250, "default", "Click to cast", "14pt 'Uncial Antiqua'", "white");
 		
 		// BEGIN main game tick
 		update();
@@ -215,13 +372,15 @@ game.engine = (function(){
 		score = 0;
 		currentLevel = 0;
 		currentGameState = GAME_STATE.IDLE;
-		windowManager.deactivate("titleScreen");
+		windowManager.deactivateUI("titleScreen");
 		
 		// prepare the level
 		setupLevel();
 		
 		// create the player
 		player = new Player();
+		// attach a light source to the player
+		lightSources.push(new LightSource(player, {r: 255, g: 255, b: 255}, 200, -1, false, false));
 		
 		// start music loop
 		bgAudio.play();
@@ -234,6 +393,7 @@ game.engine = (function(){
 		
 		//== Load the level ==//
 		loadLevel();
+		windowManager.activateUI("controlsHUD");
 		
 		//== Reset entities ==//
 		particles = [];
@@ -241,7 +401,7 @@ game.engine = (function(){
 		projectiles = [];
 		
 		//== Starting Enemy ==//
-		//enemies[0] = new Enemy(ENEMY_TYPES.GATOR);
+		enemies[0] = new Enemy(ENEMY_TYPES.GATOR);
 		
 		// Begin running!
 		currentGameState = GAME_STATE.IDLE;
@@ -275,24 +435,30 @@ game.engine = (function(){
 		ENEMY_TYPES.BAT.img.src = "assets/batRun.png";
 		ENEMY_TYPES.GATOR.img.src = "assets/gatorRun.png";
 		
-		PROJECTILE_TYPES.ARROW.img.src = "assets/arrow.png";
-		PROJECTILE_TYPES.FIREBALL.img.src = "assets/fireball.png";
+		PROJECTILE_TYPES.FIREBOLT.img.src = "assets/firebolt.png";
+		PROJECTILE_TYPES.FIREGRENADE.img.src = "assets/firegrenade.png";
+		PROJECTILE_TYPES.WATERBOLT.img.src = "assets/waterbolt.png";
+		PROJECTILE_TYPES.WATERGRENADE.img.src = "assets/watergrenade.png";
+		PROJECTILE_TYPES.EARTHBOLT.img.src = "assets/earthbolt.png";
+		PROJECTILE_TYPES.EARTHGRENADE.img.src = "assets/earthgrenade.png";
 		
-		PARTICLE_TYPES.FLAME.img.src = "assets/flameParticle.png";
-		PARTICLE_TYPES.ICE.img.src = PARTICLE_TYPES.FROST.img.src = "assets/iceParticle.png";
+		PARTICLE_TYPES.FLAME.img.src = PARTICLE_TYPES.FLAMEFOUNTAIN.img.src = "assets/flameParticle.png";
+		PARTICLE_TYPES.WATERDRIP.img.src = PARTICLE_TYPES.WATERFOUNTAIN.img.src = "assets/dripParticle.png";
+		PARTICLE_TYPES.EARTH.img.src = PARTICLE_TYPES.EARTHFOUNTAIN.img.src = "assets/earthParticle.png";
 	}
 	
 	// play a sound effect
 	function playStream(source, vol) {
-		var player = new Audio("assets/" + source);
-		player.volume = vol;
-		player.play();
+		var audioPlayer = new Audio("assets/" + source);
+		audioPlayer.volume = vol;
+		audioPlayer.play();
 	}
 	
 	// main game tick
 	function update() {
-		// scedule next draw frame
+		// scedule next draw frame and reset/calculate control variables
 		animationID = requestAnimationFrame(update);
+		postProcesses = [];
 		dt = calculateDeltaTime();
 		++time;
 		
@@ -328,17 +494,22 @@ game.engine = (function(){
 		}
 	 	
 	 	// if paused, bail out of loop
-		if (paused && currentGameState === GAME_STATE.RUNNING) {
+		if (paused && inControl()) {
 			return;
 		}
 		
-		// clear the screen
+		
+		
+		// == Main Draw ==//
+		// clear the canvases
+		offCtx.clearRect(0, 0, canvas.width, canvas.height);
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
 		
-		// draw the parallax background
-		for (var i = 0; i < canvas.width; i += background.width) {
-			ctx.drawImage(background, i, 0);
-		}
+		
+		
+		//== Update & Draw All Objects ==//
+		// All entities actually draw on the offsreen canvas in their draw function
+		// We will then manipulate lighting on the offscreen canvas and move it to the onscreen
 		
 		// only actually update if player is in control or they're off the ground
 		// we also update if they're off the ground so they don't freeze midair between levels
@@ -381,9 +552,8 @@ game.engine = (function(){
 		}
 		
 		// add an enemy if there isn't one
-		/*
-		if (enemies.length === 0) {
-			switch(Math.round(rand(0, 2))) {
+		if (enemies.length < 5 && Math.random() < 0.015) {
+			switch(Math.round(rand(0, 2.49))) {
 				case 0: enemies.push(new Enemy(ENEMY_TYPES.GATOR));
 					break;
 				case 1: enemies.push(new Enemy(ENEMY_TYPES.RAT));
@@ -392,7 +562,6 @@ game.engine = (function(){
 					break;
 			}
 		}
-		*/
 		
 		// update enemies
 		for (var i = 0; i < enemies.length; ++i) {
@@ -409,6 +578,11 @@ game.engine = (function(){
 			projectiles[i].update();
 		}
 						
+		// update runes
+		for (var i = 0; i < runes.length; ++i) {
+			runes[i].update();
+		}
+						
 		// update particle systems
 		for (var i = 0; i < particleSystems.length; ++i)
 			particleSystems[i].update();
@@ -416,47 +590,76 @@ game.engine = (function(){
 		for (var i = 0; i < particles.length; ++i)
 			particles[i].update();
 			
-		// draw terrains
-		ctx.save();
+		// update light sources
+		for (var i = 0; i < lightSources.length; ++i)
+			lightSources[i].update();
+		
+		
+		
+		//== Manipulate canvas ==//
+		// First, draw the untouched images onto the main canvas
+		ctx.globalCompositeOperation = "source-over";
+		ctx.drawImage(offCanvas, 0, 0);
+		
+		// Overlay everything with black
 		ctx.fillStyle = "black";
-		ctx.fillRect(0, TERRAIN_HEIGHT, canvas.width, TERRAIN_HEIGHT);
+		ctx.globalCompositeOperation = "source-atop";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		
-		/*
-		ctx.beginPath();
-		
-		var startX = Math.max(0, Math.floor(screenX/TERRAIN_WIDTH) - 2);
-		var endX = Math.min(level.length-1, Math.floor((screenX+canvas.width)/TERRAIN_WIDTH) + 2);
-		//var drawX  = -(screenX % TERRAIN_WIDTH);
-		//ctx.moveTo(drawX, canvas.height - 100 - level[startX]*20);
-		//++startX; drawX += TERRAIN_WIDTH;
-		var moved = false;
-		
-		for (var i = 0; i < level.length - 2; ++i) {
-			if (i >= startX && i <= endX) {
-				var drawX = -screenX + i * TERRAIN_WIDTH;
+		// Next, loop through the lights and cut out the lit parts
+		ctx.save();
+			for (var i = 0; i < lightSources.length; ++i) {
+				// get the current light source
+				var l = lightSources[i];
 				
-				if (!moved) {
-					ctx.moveTo(drawX, canvas.height - 100 - level[i]*20);
-					moved = true
-				}
-				ctx.quadraticCurveTo(drawX + TERRAIN_WIDTH, canvas.height - 100 - level[i+1]*20, drawX + TERRAIN_WIDTH*2, canvas.height - 100 - level[i+2]*20);
+				// create a radial gradient
+				var radial = ctx.createRadialGradient(l.position.x, l.position.y, Math.max(l.radius, 0), l.position.x, l.position.y, 0);
+				radial.addColorStop(0, "rgba(0, 0, 0, 0)");
+				radial.addColorStop(1, l.color);
+				ctx.fillStyle = radial;
+
+				// subtract the light from the main canvas
+				ctx.beginPath();
+				ctx.arc(l.position.x, l.position.y, Math.max(l.radius, 0), 0, Math.PI*2, false);
+				ctx.globalCompositeOperation = "destination-out";
+				ctx.fill();
 			}
-			
-			++i;
-		}
+		ctx.restore();
 		
-		ctx.lineTo(canvas.width, canvas.height);
-		ctx.lineTo(0, canvas.height);
-		ctx.closePath();
-		ctx.fill();
-		*/
+		// Finally, draw the lit parts onto the main canvas
+		ctx.globalCompositeOperation = "destination-over";
+		ctx.drawImage(offCanvas, 0, 0);
+		
+		
+		
+		//== Draw static environment ==//
+		// These are drawn last, unmodified, below everything
+		ctx.globalCompositeOperation = "destination-over";
+		// terrain
+		ctx.fillStyle = "black";
+		ctx.fillRect(0, TERRAIN_HEIGHT, canvas.width, canvas.height - TERRAIN_HEIGHT);
+		// background
+		for (var i = 0; i < canvas.width; i += background.width)
+			ctx.drawImage(background, i, 0);
+		
+		
+		
+		//== Draw postprocessed objects ==//
+		// Objects can schedule their draw call in the postprocess array
+		// These objects won't be affected by the main shading process
+		ctx.globalCompositeOperation = "source-over";
+		for (var i = 0;	i < postProcesses.length; ++i)
+			postProcesses[i]();
 		
 		ctx.restore();
 		
-		// draw HUDs
+		
+		
+		//== Draw HUDs/interfaces ==//
 		if (currentGameState != GAME_STATE.DEAD) {
 			game.windowManager.updateAndDraw([]);
-		
+			
+			/*
 			// draw score in upper right
 			var grad = ctx.createLinearGradient(0, 0, 150, 0);
 			grad.addColorStop(0, "rgba(0, 0, 0, 0)");
@@ -465,6 +668,7 @@ game.engine = (function(){
 			ctx.fillRect(canvas.width-150, 0, 150, 50);
 			fillText(ctx, "Score: " + score, canvas.width - 75, 25, "20pt Calibri", "white");
 			ctx.fill();
+			*/
 		}
 		// draw death screen if player has died
 		else {
@@ -543,8 +747,27 @@ game.engine = (function(){
 			this.onGround = (this.position.y + this.bounds.y === TERRAIN_HEIGHT);
 			
 			// update physics based on grounding
-			if (!this.onGround)
-				this.velocity.y += GRAVITY * dt;
+			if (!this.onGround || this instanceof Projectile) {
+				// stop for gravityless projectiles
+				var doGravity = true;
+				var scalar = 1;
+				
+				// do special projectile physics
+				if (this instanceof Projectile) {
+					if (!this.projType.gravity)
+						doGravity = false;
+					if (this.type() === "grenade")
+						scalar = 0.65;
+				}
+				// don't do gravity for flying enemies
+				if (this instanceof Enemy)
+					if (this.enemyType.AI === "flying")
+						doGravity = false;
+				
+				if (doGravity) {
+					this.velocity.y += GRAVITY * dt * scalar;
+				}
+			}
 			else {
 				// ground friction
 				this.velocity.x *= .91;
@@ -559,7 +782,7 @@ game.engine = (function(){
 			this.position.add(this.velocity);
 			
 			// always be above ground
-			if (this.position.y + this.bounds.y > TERRAIN_HEIGHT)
+			if (this.position.y + this.bounds.y > TERRAIN_HEIGHT && !(this instanceof Projectile))
 				this.position.y = TERRAIN_HEIGHT - this.bounds.y;
 		}
 		
@@ -586,6 +809,10 @@ game.engine = (function(){
 		this.onGround = true;					// used for updating physics
 		this.time = 0;							// used to control animation timing
 		this.offset = new Victor(0, 7); 		// player's image offset
+		this.spellType = "";					// the spell type of the player's current spell
+		this.spellElement = "";					// the element of the player's current spell
+		this.cooldown = 0;						// cooldown, determines whether a spell can be cast
+		
 		// set up image-dependent variables once the image loads
 		this.image.onload = function() {
 			this.frameWidth = this.image.width/28; 	// width of 1 frame from the spritesheet
@@ -610,19 +837,144 @@ game.engine = (function(){
 			this.health -= power;
 		}
 		
+		// FUNCTION: makes progress towards casting a spell
+		this.cast = function(keycode) {
+			// break out if the player is on cooldown
+			if (this.cooldown > 0) return;
+			
+			//== Set spell property based on how far into spell cast they are
+			// if spell type isn't set, set based on which key was pressed
+			if (this.spellType === "") {
+				switch (keycode) {
+					// pressed 1 - bolt spell
+					case KEY.ONE:
+						windowManager.deactivateUI("controlsHUD");
+						windowManager.activateUI("controlsHUD2");
+						this.spellType = "bolt";
+						break;
+					// pressed 2 - rune spell
+					case KEY.TWO:
+						windowManager.deactivateUI("controlsHUD");
+						windowManager.activateUI("controlsHUD2");
+						this.spellType = "rune";
+						break;
+					// pressed 3 - grenade spell
+					case KEY.THREE:
+						windowManager.deactivateUI("controlsHUD");
+						windowManager.activateUI("controlsHUD2");
+						this.spellType = "grenade";
+						break;
+				}
+			}
+			else
+			// if spell element isn't set, set based on which key was pressed
+			if (this.spellElement === "") {
+				switch (keycode) {
+					// pressed 1 - fire spell
+					case KEY.ONE:
+						windowManager.deactivateUI("controlsHUD2");
+						windowManager.activateUI("controlsHUD3");
+						this.spellElement = "fire";
+						break;
+					// pressed 2 - water spell
+					case KEY.TWO:
+						windowManager.deactivateUI("controlsHUD2");
+						windowManager.activateUI("controlsHUD3");
+						this.spellElement = "water";
+						break;
+					// pressed 3 - earth spell
+					case KEY.THREE:
+						windowManager.deactivateUI("controlsHUD2");
+						windowManager.activateUI("controlsHUD3");
+						this.spellElement = "earth";
+						break;
+				}
+			}
+			
+			// cast spell if both type and element are set and the function was told to cast the spell
+			if (this.spellType != "" && this.spellElement != "" && keycode === "cast") {
+				// variable to store type of spell
+				var type = {};
+					
+				// cast right spell type
+				switch (this.spellType) {
+					// if it's a bolt
+					case "bolt":
+						// set type to right bolt element
+						switch(this.spellElement) {
+							case "fire":
+								type = PROJECTILE_TYPES.FIREBOLT;
+								break;
+							case "water":
+								type = PROJECTILE_TYPES.WATERBOLT;
+								break;
+							case "earth":
+								type = PROJECTILE_TYPES.EARTHBOLT;
+								break;
+						}
+						projectiles.push(new Projectile(this.position.x+this.bounds.x/2 - type.width/2, this.position.y+this.bounds.y/2 - type.height/2, mouse, type, false));
+						break;
+					// if it's a rune
+					case "rune":
+						// set type to right rune element
+						switch(this.spellElement) {
+							case "fire":
+								type = RUNE_TYPES.FIRE;
+								break;
+							case "water":
+								type = RUNE_TYPES.WATER;
+								break;
+							case "earth":
+								type = RUNE_TYPES.EARTH;
+								break;
+						}
+						runes.push(new Rune(type));
+						break;
+					// if it's a grenade
+					case "grenade":
+						// set type to right grenade element
+						switch(this.spellElement) {
+							case "fire":
+								type = PROJECTILE_TYPES.FIREGRENADE;
+								break;
+							case "water":
+								type = PROJECTILE_TYPES.WATERGRENADE;
+								break;
+							case "earth":
+								type = PROJECTILE_TYPES.EARTHGRENADE;
+								break;
+						}
+						projectiles.push(new Projectile(this.position.x+this.bounds.x/2 - type.width/2, this.position.y+this.bounds.y/2 - type.height/2, mouse, type, false));
+						break;
+				}
+				
+				windowManager.deactivateUI("controlsHUD3");
+				windowManager.activateUI("controlsHUD");
+				//this.cooldown = type.cooldown;
+				this.spellType = "";
+				this.spellElement = "";
+			}
+		}
+		
 		// FUNCTION: main player object tick
 		this.update = function() {
 			// clamp health within 0 and max
 			this.health = clamp(this.health, 0, this.maxHealth);
-				
-			// update the player's physics
-			this.updatePhysics.call(this);
 			
-			// movement contraols
+			// movement controls
 			if (keys[KEY.A] && this.onGround)
 				this.velocity.x -= 0.6;
 			if (keys[KEY.D] && this.onGround)
 				this.velocity.x += 0.6;
+				
+			// update the player's physics
+			this.updatePhysics.call(this);
+			
+			// lock on screen
+			this.position.x = clamp(this.position.x, 0, canvas.width - this.bounds.x);
+			
+			// updates for spell casting
+			if (this.cooldown > 0) --this.cooldown;
 				
 			// DRAW: draw the player
 			this.draw();
@@ -633,20 +985,20 @@ game.engine = (function(){
 			// increment timing for animation
 			this.time = (this.time+0.75) % 28;
 					
-			ctx.save();
+			offCtx.save();
 			// draw the player's actual image from its spritesheet
-			//ctx.drawImage(this.image, this.frameWidth*Math.floor(this.time), 0, this.frameWidth, this.frameHeight, this.position.x + this.offset.x, this.position.y + this.offset.y, this.frameWidth, this.frameHeight);
-			ctx.translate(this.position.x + this.image.width/2, this.position.y + this.image.height/2);
-			ctx.scale(this.xScale, 1);
-			ctx.drawImage(this.image, -this.image.width/2 + this.offset.x, -this.image.height/2 + this.offset.y);
+			//offCtx.drawImage(this.image, this.frameWidth*Math.floor(this.time), 0, this.frameWidth, this.frameHeight, this.position.x + this.offset.x, this.position.y + this.offset.y, this.frameWidth, this.frameHeight);
+			offCtx.translate(this.position.x + this.image.width/2, this.position.y + this.image.height/2);
+			offCtx.scale(this.xScale, 1);
+			offCtx.drawImage(this.image, -this.image.width/2 + this.offset.x, -this.image.height/2 + this.offset.y);
 				
 			// draw health above head
-			//ctx.fillStyle = "red";
-			//ctx.fillRect(this.position.x+10, this.position.y - 14, this.bounds.x-20, 5);
-			//ctx.fillStyle = "green";
-			//ctx.fillRect(this.position.x+10, this.position.y - 14, (this.bounds.x-20) * (this.health/this.maxHealth), 5);
+			//offCtx.fillStyle = "red";
+			//offCtx.fillRect(this.position.x+10, this.position.y - 14, this.bounds.x-20, 5);
+			//offCtx.fillStyle = "green";
+			//offCtx.fillRect(this.position.x+10, this.position.y - 14, (this.bounds.x-20) * (this.health/this.maxHealth), 5);
 			
-			ctx.restore();
+			offCtx.restore();
 		}
 	}
  
@@ -654,92 +1006,162 @@ game.engine = (function(){
 	function Projectile(x, y, towards, projType, enemy) {
 		MobileObject.call(this);
 		
-		// type of projectile
-		this.projType = projType;
-		this.enemyProj = enemy; // whether an enemy fired it (only hits players)
-		this.speed = 30 - this.projType.velocity;
-		this.gravity = this.projType.gravity;
+		this.projType = projType;					// what type of projectile it is, determines its properties
+		this.enemyProj = enemy; 					// whether an enemy fired it (only hits players)
+		this.speed = this.projType.velocity;		// speed projectile travels at
+		this.gravity = this.projType.gravity;		// whether or not it's affected by gravity
+		this.numBounces = 0;						// number of times this has bounced - used by grenades
+		this.time = 0;
+		this.system = {};
+		this.light = {};
+		
 		// the projectile's bounding box
-		this.bounds = new Victor(
-			this.projType.width,
-			this.projType.height
-		);
+		this.bounds = new Victor(this.projType.width, this.projType.height);
 		// starting projectile position
-		this.position = new Victor(
-			x,
-			y
-		);
+		this.position = new Victor(x, y);
+		
 		// starting projectile velocity
 		// directs itself towards the "towards" object passed in
 		if (towards != undefined)
 			if (towards.position != undefined)
-				this.velocity = this.vecToOther(towards).divide(Victor(this.speed, this.speed));
+				this.velocity = this.vecToOther(towards).norm().multiply(Victor(this.speed, this.speed));
 			else
-				this.velocity = Victor().subtract(this.position);
+				this.velocity = Victor().subtract(this.position).norm().multiply(Victor(this.speed, this.speed));
 		else
-			this.velocity = Victor().subtract(this.position);
+			this.velocity = Victor().subtract(this.position).norm().multiply(Victor(this.speed, this.speed));
 			
-		// attach a particle system based on its projectile type
-		switch (this.projType) {
-			case PROJECTILE_TYPES.FIREBALL:
-				this.system = new ParticleSystem(this, PARTICLE_TYPES.FLAME, -1, 10, 5);
-				particleSystems.push(this.system);
-				break;
+		// attach a light source and particle system based on the types declared in the projectile enum
+		this.system = new ParticleSystem(this, this.projType.particle, -1, this.projType.particleLifetime, this.projType.particlesPerFrame);
+		this.light = new LightSource(this, this.projType.color, this.projType.width*4, -1, true, true);
+		particleSystems.push(this.system);
+		lightSources.push(this.light);
+		
+		// FUNCTION: gives a generalized string that portrays its projectile type
+		this.type = function() {
+			if (this.projType === PROJECTILE_TYPES.FIREBOLT || this.projType === PROJECTILE_TYPES.WATERBOLT || this.projType === PROJECTILE_TYPES.EARTHBOLT)
+				return "bolt";
+			if (this.projType === PROJECTILE_TYPES.FIREGRENADE || this.projType === PROJECTILE_TYPES.WATERGRENADE || this.projType === PROJECTILE_TYPES.EARTHGRENADE)
+				return "grenade";
+		}
+	
+		// FUNCTION: gives a generalized string that portrays its element
+		this.element = function() {
+			if (this.projType === PROJECTILE_TYPES.FIREBOLT || this.projType === PROJECTILE_TYPES.FIREGRENADE)
+				return "fire";
+			if (this.projType === PROJECTILE_TYPES.WATERBOLT || this.projType === PROJECTILE_TYPES.WATERGRENADE)
+				return "water";
+			if (this.projType === PROJECTILE_TYPES.EARTHBOLT || this.projType === PROJECTILE_TYPES.EARTHGRENADE)
+				return "earth";
 		}
 		
-		// give an upwards thrust if it's affected by gravity
-		if (this.gravity)
-			this.velocity.y -= 15;
-		
 		// FUNCTION: main projectile object tick
-		this.update = function() {		
-			// kill player if off screen
-			if (this.position.y > canvas.height*2 || this.position.x < 0 || this.position.x > canvas.width) {
-				// delete this one
-				projectiles.splice(projectiles.indexOf(this), 1);
-				particleSystems.splice(particleSystems.indexOf(this.system), 1);
-				return;
-			}
-			
-			// whether the projectile has collided with something
-			var collided = false;
-			var victim = {} // stores who/what the projectile hit
-				
-			// check player collisions if it's an enemy projectile
-			if (this.enemyProj && this.overlaps(player)) {
-				collided = true;
-				victim = p;
+		this.update = function() {	
+			// handle hitting terrain
+			if (this.position.y + this.bounds.y > TERRAIN_HEIGHT) {
+				// for bolts, they just explode (disappear)
+				if (this.type() === "bolt") {
+					// create a quick 'particle burst'
+					particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: this.bounds.clone()}, this.projType.particle, 1, this.projType.particleLifetime, Math.min(Math.max(0.5, this.projType.particlesPerFrame)*20, 40)));
+					// splice out the projectile's particle system, and itself
+					particleSystems.safeSplice(particleSystems.indexOf(this.system), 1);
+					projectiles.safeSplice(projectiles.indexOf(this), 1);
+					// begin the light source's death
+					this.light.root = "dying";
+				}
+					
+				// for grenades, they bounce
+				if (this.type() === "grenade") {
+					this.position.y = TERRAIN_HEIGHT - this.bounds.y;
+					this.velocity.multiply(Victor(0.7, -0.8));
+					++this.numBounces;
+				}
 			}
 			
 			// update the projectile's physics
 			this.updatePhysics.call(this);
 			
-			// loop through enemies if it's a non-enemy projectile
-			if (!this.enemyProj)
-			for (var i = 0; i < enemies.length; ++i) {
-				// get currently looped terrain object
-				var e = enemies[i];
+			// whether the projectile has collided with something
+			var victim = "" // stores who/what the projectile hit
+			
+			// explode once it's finished its 3rd bounce
+			if (this.numBounces >= 3)
+				victim = this;
 				
-				// update onGround variable by comparing pos to each terrain object
-				if (this.overlaps(e)) {
-					collided = true;
-					victim = e;
-					break;
-				}
+			// check player collisions if it's an enemy projectile
+			if (this.enemyProj && this.overlaps(player)) {
+				victim = p;
 			}
 			
-			else {
-				// damage the victim and give it a flame particle system
-				victim.damage(this.projType.strength());
-				particleSystems.push(new ParticleSystem(victim, PARTICLE_TYPES.FLAME, 60, 30, 5));
+			// loop through enemies if it's a non-enemy projectile
+			if (!this.enemyProj)
+				for (var i = 0; i < enemies.length; ++i) {
+					// get currently looped terrain object
+					var e = enemies[i];
+					
+					// update onGround variable by comparing pos to each terrain object
+					if (this.overlaps(e)) {
+						victim = e;
+						break;
+					}
+				}
 			
-				// if this is a magi fireball, ignite the enemy
-				if (this.projType === PROJECTILE_TYPES.MAGIFIREBALL)
-					victim.fireTicks = 60;
-			
+			// if it has a hit something
+			if (victim != "") {
+				// damage non-projectiles
+				if (!(victim instanceof Projectile)) {
+					victim.velocity = Victor(this.velocity.x/2, -this.projType.strength/2);
+					--victim.position.y;
+						
+					// damage the victim
+					victim.damage(this.projType.strength);
+					
+					// if this projectile is fire based, ignite the enemy and give
+					// them a flame particle system if it's not already on fire
+					if (this.element() === "fire") {
+						if (victim.fireTicks <= 0)
+							particleSystems.push(new ParticleSystem(victim, PARTICLE_TYPES.FLAME, 60, 30, 2));
+						victim.fireTicks = 60;
+					}
+				}
+				
+				// if this is a grenade, loop enemies and do an AOE
+				if (this.type() === "grenade") {
+					for (var i = 0; i < enemies.length; ++i) {
+						// get the looped enemy and the distance from it
+						var enemy = enemies[i];
+						var distance = this.position.clone().subtract(enemy.position.clone()).length();
+						
+						// don't damage the enemy who was hit again
+						if (enemy != victim) {
+							// if close enough, deal damage based on distance
+							if (distance < 200) {
+								var scalar = (200 - distance)/200;
+								var vel = enemy.velocity.y;
+								enemy.velocity = Victor(this.velocity.x/2, -this.projType.strength/2).multiply(Victor(scalar, scalar));
+								--enemy.position.y;
+								enemy.damage(this.projType.strength * scalar);
+								
+								// if this grenade is fire based, ignite the enemy and give
+								// them a flame particle system if it's not already on fire
+								// ignition length and particle lifetime is based on distance scalar
+								if (this.element() === "fire") {
+									if (enemy.fireTicks <= 0)
+										particleSystems.push(new ParticleSystem(enemy, PARTICLE_TYPES.FLAME, 60 * scalar, 30, 2));
+									enemy.fireTicks = 60 * scalar;
+								}
+							}
+						}
+					}
+				}
+				
+				// create a quick 'particle burst' as if the projectile shattered
+				particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: this.bounds.clone()}, this.projType.particle, 1, this.projType.particleLifetime, Math.min(Math.max(0.5, this.projType.particlesPerFrame)*20, 40)));
 				// delete this one
-				particleSystems.splice(particleSystems.indexOf(this.system), 1);
-				projectiles.splice(projectiles.indexOf(this), 1);
+				particleSystems.safeSplice(particleSystems.indexOf(this.system), 1);
+				projectiles.safeSplice(projectiles.indexOf(this), 1);
+				// begin the light source's death
+				this.light.root = "dying";
+				return;
 			}
 				
 			// DRAW: draw the projectile
@@ -748,8 +1170,82 @@ game.engine = (function(){
 	
 		// FUCNTION: main projectile draw call
 		this.draw = function() {
+			// draw increments based on y speed
+			this.time += this.velocity.clone().norm().x/7;//0.1*(this.velocity.x == 0 ? 1 : Math.sign(this.velocity.x));//
+			
+			offCtx.save();
+			offCtx.translate(this.position.x + this.bounds.x/2, this.position.y + this.bounds.y/2);
+			offCtx.rotate(this.time);
+			offCtx.drawImage(this.projType.img, -this.bounds.x/2, -this.bounds.y/2);
+			offCtx.restore();
+		}
+	}
+	
+	// CLASS: rune, a magical mine the player can place
+	function Rune(runeType) {
+		GameObject.call(this);
+		
+		// assign starting variables
+		this.runeType = runeType;
+		this.position = new Victor(mouse.position.x - this.runeType.width/2, TERRAIN_HEIGHT);
+		this.light = {};
+		this.system = {};
+		
+		// create particle system and light based on rune type
+		//this.system = new ParticleSystem(this, this.projType.particle, -1, this.projType.particleLifetime, this.projType.particlesPerFrame);
+		this.light = new LightSource(this, this.runeType.color, this.runeType.width, -1, false, false);
+		//particleSystems.push(this.system);
+		lightSources.push(this.light);
+		
+		// Update - checks if enemies have triggered the rune
+		this.update = function() {
+			// variable to store whether an enemy/enemies triggered the rune
+			var triggered = false;
+			
+			// loop enemies
+			for (var i = 0; i < enemies.length; ++i) {
+				// get current one
+				var e = enemies[i];
+				
+				// check if enemy is above rune's center and is on the ground
+				if (e.position.x + e.bounds.x > this.position.x && e.position.x < this.position.x && e.onGround) {
+					triggered = true;
+				
+					// damage and knock up the enemy
+					e.damage(this.runeType.strength);
+					e.velocity.y = -this.runeType.strength/2;
+					--e.position.y;
+					
+					// create a quick 'particle burst'
+					particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: new Victor()}, this.runeType.particle, 1, this.runeType.particleLifetime, Math.min(Math.max(0.5, this.runeType.particlesPerFrame)*20, 40)));
+				}
+			}
+					
+			// if the rune was triggered, remove this rune, its particle system, and its light source from the global lists
+			if (triggered) {
+				runes.safeSplice(runes.indexOf(this), 1);
+				lightSources.safeSplice(lightSources.indexOf(this.light), 1);
+				particleSystems.safeSplice(particleSystems.indexOf(this.system), 1);
+				return;
+			}
+			
+			// draw the rune as a postprocess
+			postProcesses.push(this.draw.bind(this));
+		}
+		
+		// Draw
+		// Called as a postprocesses
+		this.draw = function() {			
+			// draw a ring on the ground
 			ctx.save();
-			ctx.drawImage(this.projType.img, this.position.x, this.position.y);
+				var grad = ctx.createLinearGradient(this.position.x, this.position.y - this.runeType.width, this.position.x, this.position.y);
+				grad.addColorStop(0, colorString(this.runeType.color, 0));
+				grad.addColorStop(1, colorString(this.runeType.color, 0.5));
+				ctx.fillStyle = grad;
+				ctx.fillRect(this.position.x - this.runeType.width/2, this.position.y - this.runeType.width, this.runeType.width, this.runeType.width);
+				
+				ctx.translate(this.position.x, this.position.y);
+				ctx.scale(1, 0.05)
 			ctx.restore();
 		}
 	}
@@ -762,55 +1258,46 @@ game.engine = (function(){
 		this.enemyType = enemyType;		// what type of enemy this is
 		this.time = 0; // controls sprite animation timing
 		this.health = this.maxHealth = this.enemyType.health; // get health and max health of this enemy type
+		this.frameWidth = this.enemyType.img.width/28; // width of 1 frame from the spritesheet
+		this.frameHeight = this.enemyType.img.height;  // height of 1 frame from the spritesheet
+		this.offset = new Victor(this.frameWidth/-4, this.frameHeight/-4); // enemys's image offset
 		this.bounds = new Victor(
 			this.enemyType.width,
 			this.enemyType.height
 		);
 		this.position = new Victor(		// starting enemy position
-			canvas.width + this.bounds.x*1.5,
-			canvas.height-this.bounds.y*2
+			canvas.width + this.frameWidth,
+			TERRAIN_HEIGHT - this.bounds.y*1.5
 		);
-		this.frameWidth = this.enemyType.img.width/28; // width of 1 frame from the spritesheet
-		this.frameHeight = this.enemyType.img.height;  // height of 1 frame from the spritesheet
-		this.offset = new Victor(this.frameWidth/-4, this.frameHeight/-4); // enemys's image offset
 		
-		// set target differently depending on AI
-		switch (this.enemyType.AI) {
-			// if they're flying, they home to the top right
-			case "flying":
-				this.targetPos = new Victor(	// the location the enemy is homing towards
-					canvas.width - this.bounds.x*1.5,
-					this.bounds.y*1.5
-				);
-				break;
-			// if it's a running enemy, they home to the right side
-			default:
-				this.targetPos = new Victor(	// the location the enemy is homing towards
-					canvas.width - this.bounds.x*1.5,
-					canvas.height-this.bounds.y
-				);
-				break;
-		}
+		// flying enemies spawn at the top of the screen
+		if (this.enemyType.AI === "flying")
+			this.position.y = 0;
 		
-		// FUNCTION: prints enemy information to console
-		this.toString = function() {
-			console.log("Enemy " + this.enemyType + " is at x" + this.position.toString());
-		}
+		// some spawn on left of screen instead
+		if (Math.random() < 0.5) this.position.x = -this.frameWidth*2;
 		
 		// FUNCTION: main enemy object tick
-		this.update = function() {					
-			// kill enemy if off screen or dead
-			if (this.position.y > canvas.height*2 || this.health <= 0) {
+		this.update = function() {
+			// check if enemy is dead
+			if (this.health <= 0) {
 				// award points equal to its starting health
 				score += this.enemyType.health;
 				
 				// delete this one
-				enemies.splice(enemies.indexOf(this), 1);
+				enemies.safeSplice(enemies.indexOf(this), 1);
+				return;
 			}
 			
-			// bobbing for flying enemies
-			if (this.enemyType.AI === "flying")
+			// always move towards the player's other side
+			this.targetPos = player.position.clone();
+			this.targetPos.x += player.bounds.x/4 * this.xScale;
+			
+			// bobbing for flying enemies, and target above the player
+			if (this.enemyType.AI === "flying") {
 				this.position.y += Math.sin(time/10);
+				this.targetPos.y -= this.bounds.y*2;
+			}
 				
 			// lose health from active DOTs
 			if (this.fireTicks > 0) {
@@ -818,63 +1305,19 @@ game.engine = (function(){
 				this.health -= 0.05;
 			}
 			
-			// home towards target position
-			if (this.targetPos != undefined) {
-				// if it's close, snap to its homing position
-				if (this.position.distanceSq(this.targetPos) <= 9) {
-					this.position = this.targetPos;
-					this.targetPos = undefined;
-					this.velocity = new Victor();
-				}
-				// otherwise, velocity homes towards its target
-				else {
-					// if it's a flying enemy, it uses true homing
-					if (this.enemyType.AI === "flying")
-						this.velocity = this.targetPos.clone().subtract(this.position).divide(new Victor(20, 20));
-					// otherwise, only set x velocity
-					else
-						this.velocity.x = this.targetPos.clone().subtract(this.position).divide(new Victor(20, 20)).x;
-				}
-			}
+			// if it's a flying enemy, it uses true homing
+			if (this.enemyType.AI === "flying")
+				this.velocity = this.targetPos.clone().subtract(this.position).norm().multiply(Victor(2, 2.5));
+			// otherwise, only set x velocity
+			else
+				// doesn't move if off ground
+				if (this.onGround)
+					this.velocity.x = Math.sign(this.targetPos.clone().subtract(this.position).x);
+				else
+					this.velocity.x = 0;
 			
-			// loop through velocity
-			for (var i = 0; i < this.velocity.length(); ++i) {	
-				// distance we'll move along each axis this loop
-				var moveDistX = 0; var moveDistY = 0;
-				// move distance is 1, or the decimal remainder of velocity on the last loop
-				// only actually update the moveDist if it would be > 0
-				if (Math.abs(this.velocity.x) - i > 0)
-					moveDistX = (Math.abs(this.velocity.x) - i < 1 ? Math.abs(this.velocity.x) - i : 1) * Math.sign(this.velocity.x);
-				// only do vertical target tracking if they're a flying enemy
-				if (Math.abs(this.velocity.y) - i > 0)
-					moveDistY = (Math.abs(this.velocity.y) - i < 1 ? Math.abs(this.velocity.y) - i : 1) * Math.sign(this.velocity.y);
-				
-				// variable to store if its safe to move
-				var positionSafe = true;
-				
-				// if we're safe to move, shift down
-				if (positionSafe || (this.position.y + this.bounds.y > currentTerrain.position.y && this.enemyType.AI != "flying")) {
-					this.position.x += moveDistX;
-					this.position.y += moveDistY;
-					//console.log(this.position + ", " + this.onGround + ", " + this.velocity.toString());
-				}
-				// otherwise, stick to the terrain
-				else {
-					this.velocity.y = 0;
-					this.position.y = canvas.height - this.bounds.y;
-					this.numJumps = 0;
-					this.onGround = true;
-					break;
-				}
-			}
+			this.updatePhysics();
 			
-			// if it's on the ground, forcibly ground it
-			if (this.onGround) {
-				this.velocity.y = 0;
-				this.position.y = canvas.height - this.bounds.y;
-				this.numJumps = 0;
-			}
-				
 			// DRAW: draw the enemy
 			this.draw();
 		}
@@ -882,19 +1325,31 @@ game.engine = (function(){
 		// FUCNTION: main enemy draw call
 		this.draw = function() {
 			// increment timing for animation
-			this.time = (this.time+0.75) % 28;
+			if ((this.onGround || this.enemyType.AI === "flying") && Math.abs(this.velocity.x) > 0)
+				this.time = (this.time+0.75) % 28;
+			else {
+				if (Math.abs(this.velocity.x) > 0)
+					if (this.time != 0 && this.time != 13)
+						this.time = Math.round(this.time+1) % 28;
+				else
+					if (this.time != 7 && this.time != 20)
+						this.time = Math.round(this.time+1)
+			}
 					
-			ctx.save();
-			// rats have completed art, so draw their sprite from their sheet
-			ctx.drawImage(this.enemyType.img, this.frameWidth*Math.floor(this.time), 0, this.frameWidth, this.frameHeight, this.position.x + this.offset.x, this.position.y + this.offset.y, this.frameWidth, this.frameHeight);
-			
+			offCtx.save();
+				offCtx.save();
+				offCtx.translate(this.position.x + this.bounds.x/2, this.position.y + this.bounds.y/2);
+				offCtx.scale(this.xScale, 1);
+				offCtx.drawImage(this.enemyType.img, this.frameWidth*Math.floor(this.time), 0, this.frameWidth, this.frameHeight, (-this.bounds.x/2 + this.offset.x), -this.bounds.y/2 + this.offset.y, this.frameWidth, this.frameHeight);
+				offCtx.restore();
+				
 			// draw health above head
-			ctx.fillStyle = "red";
-			ctx.fillRect(this.position.x+10, this.position.y - 10, this.bounds.x-20, 5);
-			ctx.fillStyle = "green";
-			ctx.fillRect(this.position.x+10, this.position.y - 10, (this.bounds.x-20) * (this.health/this.maxHealth), 5);
-			ctx.fill();
-			ctx.restore();
+			offCtx.fillStyle = "red";
+			offCtx.fillRect(this.position.x+10, this.position.y - 10, this.bounds.x-20, 5);
+			offCtx.fillStyle = "green";
+			offCtx.fillRect(this.position.x+10, this.position.y - 10, (this.bounds.x-20) * (this.health/this.maxHealth), 5);
+			offCtx.fill();
+			offCtx.restore();
 		}
 	}
  
@@ -907,9 +1362,17 @@ game.engine = (function(){
 		
 		// update particle system
 		this.update = function() {
+			// check if root is gone
+			var rootGone = false;
+			if (this.root instanceof Enemy)
+				rootGone = (enemies.indexOf(this.root) === -1);
+			if (this.root instanceof Projectile)
+				rootGone = (projectiles.indexOf(this.root) === -1);
+			if (this.root instanceof Particle)
+				rootGone = (particles.indexOf(this.root) === -1);
 			// delete this if its root is gone
-			if (this.root == undefined) {
-				particleSystems.splice(particleSystems.indexOf(this), 1);
+			if (rootGone) {
+				particleSystems.safeSplice(particleSystems.indexOf(this), 1);
 				return;
 			}
 		
@@ -929,7 +1392,7 @@ game.engine = (function(){
 			++this.time;
 			// delete this system if its time lived has surpassed its lifetime
 			if (this.time > lifetime && lifetime > 0) {
-				particleSystems.splice(particleSystems.indexOf(this), 1);
+				particleSystems.safeSplice(particleSystems.indexOf(this), 1);
 			}
 		}
 	}
@@ -940,90 +1403,135 @@ game.engine = (function(){
 		MobileObject.call(this);
 	
 		// assign starting variables
+		this.onGround = false;
 		this.parent = parent;
 		this.particleType = particleType;	// what type of particle this is
-		this.deathtime = 0; 				// used to kill particles if they don't die naturally
+		this.deathTime = 0; 				// used to kill particles if they don't die naturally
 		this.lifetime = lifetime;
 		this.position = new Victor(parent.root.position.x + parent.root.bounds.x/10 + Math.random()*parent.root.bounds.x*0.8, parent.root.position.y + parent.root.bounds.y/10 + Math.random()*parent.root.bounds.y*0.8);
 		this.velocity = this.particleType.vel.call(this);
 		this.bounds = new Victor(3, 3);
+		this.light = {};
 		this.time = 0;
+		
+		// make a small light source around the particle depending on its type
+		switch (this.particleType) {
+			case PARTICLE_TYPES.FLAME:
+				this.light = new LightSource(this, globalFire(), 12, -1, false, true);
+				lightSources.push(this.light);
+				break;
+			case PARTICLE_TYPES.EARTH:
+				this.light = new LightSource(this, globalEarth(), 12, -1, true, true);
+				lightSources.push(this.light);
+				break;
+		}
 		
 		// update particle
 		this.update = function() {
 			// affected by gravity based on particle type
-			if (this.particleType.gravity)
-				this.velocity.y += GRAVITY*dt;
-		
-			// if particle type collides with terrain, do pixel collisions
-			if (this.particleType.collidesTerrain) {
-				// loop through velocity
-				for (var i = 0; i < this.velocity.length(); ++i) {	
-				// distance we'll move along each axis this loop
-				var moveDistX = 0; var moveDistY = 0;
-				// move distance is 1, or the decimal remainder of velocity on the last loop
-				// only actually update the moveDist if it would be > 0
-				if (Math.abs(this.velocity.x) - i > 0)
-					moveDistX = (Math.abs(this.velocity.x) - i < 1 ? Math.abs(this.velocity.x) - i : 1) * Math.sign(this.velocity.x);
-				// only do vertical target tracking if they're a flying enemy
-				if (Math.abs(this.velocity.y) - i > 0)
-					moveDistY = (Math.abs(this.velocity.y) - i < 1 ? Math.abs(this.velocity.y) - i : 1) * Math.sign(this.velocity.y);
-				
-				// variable to store if its safe to move
-				var positionSafe = true;
-				
-				// loop through terrain objects and check if we can move down
-				for (var ii = 0; ii < terrains.length; ++ii) {
-					// get currently looped terrain object
-					var currentTerrain = terrains[ii];
-					
-					// check is position we'd move to is safe (above terrain)
-					// terrain we're checking is below is
-					if (this.position.x < currentTerrain.position.x + TERRAIN_WIDTH && this.position.x + this.bounds.x + moveDistX > currentTerrain.position.x) {
-						// terrain below us is solid ground and we'd be inside it if we moved down
-						if (this.position.y + this.bounds.y + moveDistY > currentTerrain.position.y && currentTerrain.isSolid()) {
-							// it's not safe to move
-							positionSafe = false;
-							break;
-						}
-					}
-				}
-				
-				// if we're safe to move, shift down
-				if (positionSafe || (this.position.y + this.bounds.y > currentTerrain.position.y)) {
-					this.position.x += moveDistX;
-					this.position.y += moveDistY;
-				}
-				// otherwise, bounce
-				else {
-					this.velocity.y *= -0.85;
-					break;
-				}
+			// don't simulation physics for landed particles
+			if (!this.onGround) {
+				if (this.particleType.gravity)
+					this.updatePhysics();
+				else
+					this.position.add(this.velocity);
 			}
-			}
-			// otherwise, just move
-			else
-				this.position.add(this.velocity);
 			
 			// increment death timer if the particle is barely moving
-			if (this.velocity.length() < 0.1)
+			if (this.velocity.length() < 0.1 || this.onGround)
 				++this.deathTime;
 			// increment time lived
 			++this.time;
 			
 			// delete this particle if its time lived has surpassed its lifetime, if it has been still for 100 ticks,
 			// or if it has moved offscreen
-			if ((this.time > this.lifetime && this.lifetime > 0) || this.deathTime > 100 ||
+			if ((this.time > this.lifetime && this.lifetime > 0) || this.deathTime > 50 ||
 				 this.position.x < 0 || this.position.x > canvas.width || this.position.y < 0 || this.position.y > canvas.height) {
-				particles.splice(particles.indexOf(this), 1);
+				particles.safeSplice(particles.indexOf(this), 1);
+				lightSources.safeSplice(lightSources.indexOf(this.light), 1);
 				return;
 			}
-				
+			
+			// Draw particle as a post-process (disobeys lighting)
+			postProcesses.push(this.draw.bind(this));
+		}
+		
+		// Draw particle
+		this.draw = function() {
 			// draw based on particle type
-			ctx.drawImage(this.particleType.img, this.position.x, this.position.y);
+			if (this.deathTime > 0) {
+				ctx.save();
+				ctx.globalAlpha = (50 - this.deathTime)/50;
+				ctx.drawImage(this.particleType.img, this.position.x, this.position.y);
+				ctx.restore();
+			}
+			else
+				ctx.drawImage(this.particleType.img, this.position.x, this.position.y);
 		}
 	}
  
+	// CLASS: particle system
+	function LightSource(root, color, radius, lifetime, flicker, visible) {
+		// assign starting variables
+		this.visible = visible;					// whether or not to actually draw the light; false makes an "anit-fog of war" (visibility vs. light)
+		this.root = root;						// the object this is linked to
+		this.position = this.root.position;		// light's position
+		this.radius = radius;					// outer radius of the light
+		// the color of the source's light, passed as rgb object literal for use in draw call
+		this.color = "rgb(" + color.r + "," + color.g + "," + color.b + ")";
+		
+		// Update light source system
+		this.update = function() {
+			// delete this if its root is gone or it's too small to draw
+			if (this.root == undefined || this.radius < 1) {
+				lightSources.safeSplice(lightSources.indexOf(this), 1);
+				return;
+			}
+			
+			// if the root is instead set to "dying", shrink the light
+			if (this.root === "dying") {
+				this.radius *= 0.9;
+				--this.radius;
+			}
+			else {
+				// stick to root object
+				this.position = this.root.position.clone().add(this.root.bounds.clone().divide(Victor(2, 2)));
+				
+				// flicker radius if flicker is enabled
+				if (flicker)
+					this.radius = radius * rand(0.9, 1.1);
+				
+				// increment time lived
+				++this.time;
+				// delete this system if its time lived has surpassed its lifetime
+				if (this.time > lifetime && lifetime > 0) {
+					lightSources.safeSplice(lightSources.indexOf(this), 1);
+				}
+			}
+			
+			// Draw call: set light to be drawn as a postprocess
+			// particles don't draw an actual colored glow for performance reasons
+			if (!(this.root instanceof Particle) && visible)
+				postProcesses.push(this.draw.bind(this));
+		}
+		
+		//== Draw the light source
+		// This is only ever called as a post-process
+		this.draw = function() {
+			// draw the light on the canvas
+			// create a radial gradient
+			var radial = ctx.createRadialGradient(this.position.x, this.position.y, Math.max(this.radius, 0), this.position.x, this.position.y, 0);
+			radial.addColorStop(0.3, "rgba(" + color.r + "," + color.g + "," + color.b + ", 0)");
+			radial.addColorStop(1, "rgba(" + color.r + "," + color.g + "," + color.b + ", 0.5)");
+			ctx.fillStyle = radial;
+			
+			ctx.beginPath();
+			ctx.arc(this.position.x, this.position.y, Math.max(this.radius, 0), 0, Math.PI*2, false);
+			ctx.globalCompositeOperation = "lighter";
+			ctx.fill();
+		}
+	}
+	
 	// PAUSE FUNCTION: pauses the game
 	function pauseGame() {
 		// since pause can be called multiple ways
@@ -1066,9 +1574,15 @@ game.engine = (function(){
 		if (keys[e.keyCode] === undefined)
 			keys[e.keyCode] = false;
 		
+		// send it to the player if they're not casting already
+		if (player.cooldown <= 0)
+			player.cast(e.keyCode);
+		else
+			console.log("Player can't cast");
+		
 		// spacebar - jump!
 		if (e.keyCode === KEY.SPACE) {
-			player.jump(15, 1);
+			player.jump(8, 1);
 			
 			// prevent spacebar page scrolling
 			e.preventDefault();
