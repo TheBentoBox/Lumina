@@ -45,17 +45,15 @@ game.windowManager = (function(){
 		for(var i=0; i < uiElements.length; i++){
 			elem = uiElements[i];
 			//console.log("Element bounds: " + elem.position.x + ", " + elem.position.y + ", " + (elem.position.x + elem.size.x) + ", " + (elem.position.y + elem.size.y));
-			if(mouse.position.x >= elem.position.x && mouse.position.x <= (elem.position.x + elem.size.x) && mouse.position.y >= elem.position.y && mouse.position.y <= (elem.position.y + elem.size.y) && elem.isActive){
+			if(mouse.position.x >= elem.position.x && mouse.position.x <= (elem.position.x + elem.bounds.x) && mouse.position.y >= elem.position.y && mouse.position.y <= (elem.position.y + elem.bounds.y) && elem.isActive){
 				clicked = true;
 				// check if any buttons were clicked inside the clicked element
-				for(var j=0; j < uiElements[i].buttons.length; j++){
-					but = elem.buttons[j];
-					if(mouse.position.x >= elem.position.x + but.offset.x && mouse.position.x <= elem.position.x + but.offset.x + but.size.x && mouse.position.y >= elem.position.y + but.offset.y && mouse.position.y <= elem.position.y + but.offset.y + but.size.y && but.isActive){
-						// call click event of clicked button if it has one
-						if (but.onClick != undefined) {
-							but.onClick();
-							return clicked;
-						}
+				for(var j=0; j < elem.subElements.length; j++){
+					but = elem.subElements[j];
+					// attempt to call the element's click event if it has one (meaning it's a button)
+					if (but.onClick != undefined && mouse.position.x >= elem.position.x + but.offset.x && mouse.position.x <= elem.position.x + but.offset.x + but.bounds.x && mouse.position.y >= elem.position.y + but.offset.y && mouse.position.y <= elem.position.y + but.offset.y + but.bounds.y && but.isActive){
+						but.onClick();
+						return clicked;
 					}
 				}
 			}
@@ -335,7 +333,7 @@ game.windowManager = (function(){
 			};
 		};
 		
-		//{ UI MODIFIERS
+		// UI MODIFIERS
 		// MUTATOR: set name
 		this.setName = function(newName){
 			this.name = newName;
@@ -395,7 +393,7 @@ game.windowManager = (function(){
 		this.deactivatePause = function(){
 			this.doesPause = false;
 		};
-		//} UI MODIFIERS
+		// UI MODIFIERS
 		
 		// FUNCTION: update and draw UI element
 		this.updateAndDraw = function(trackers){
@@ -448,7 +446,7 @@ game.windowManager = (function(){
 		this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
 		
 		// global position of subelement
-		this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		this.position = new Victor(this.parPosition.x + this.offset.x, this.parPosition.y + this.offset.y);
 		
 		// button bounds
 		this.bounds = new Victor(width, height);
@@ -762,7 +760,7 @@ game.windowManager = (function(){
 		this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
 		
 		// global position of subelement
-		this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		this.position = new Victor(this.parPosition.x + this.offset.x, this.parPosition.y + this.offset.y);
 		
 		// text box bounds
 		this.bounds = new Victor(width, height);
