@@ -82,6 +82,11 @@ game.windowManager = (function(){
 		uiElements.find(uiName).subElements.push(new Text(uiName, textName, offsetX, offsetY, width, height, string, css, color));
 	}
 	
+	// FUNCTION: make a new image
+	function makeImage(uiName, imageName, offsetX, offsetY, width, height, image){
+		uiElements.find(uiName).subElements.push(new ImageBox(uiName, imageName, offsetX, offsetY, width, height, image));
+	}
+	
 	// FUNCTION: modify UI variables
 	function modifyUI(uiName, varName, args){
 		var elem = uiElements.find(uiName);
@@ -180,7 +185,7 @@ game.windowManager = (function(){
 		switch(varName){
 			case("all"):
 				but.setName(args.name);
-				but.setOffset(args.xOff, args,yOff);
+				but.setOffset(args.xOff, args.yOff);
 				but.setBounds(args.width, args.height);
 				but.setBorder(args.color, args.width);
 				but.setFill(args.color);
@@ -308,6 +313,42 @@ game.windowManager = (function(){
 				break;
 			case("target"):
 				text.setTarget(args.targets);
+		}
+	}
+	
+	// FUNCTION: modify image variables
+	function modifyImage(uiName, imageName, varName, args){
+		var img = uiElements.find(uiName).subElements.find(imageName);
+		switch(varName){
+			case("all"):
+				img.setName(args.name);
+				img.setOffset(args.xOff, args.yOff);
+				img.setBounds(args.width, args.height);
+				img.setBorder(args.color, args.width);
+				img.setFill(args.color);
+				img.setImage(args.image);
+				break;
+			case("name"):
+				img.setName(args.name);
+				break;
+			case("offset"):
+				img.setOffset(args.xOff, args.yOff);
+				break;
+			case("position"):
+				img.setPosition(args.xPos, args.yPos);
+				break;
+			case("bounds"):
+				img.setBounds(args.width, args.height);
+				break;
+			case("border"):
+				img.setBorder(args.color, args.width);
+				break;
+			case("fill"):
+				img.setFill(args.color);
+				break;
+			case("image"):
+				img.setImage(args.image);
+				break;
 		}
 	}
 	
@@ -509,7 +550,7 @@ game.windowManager = (function(){
 		}
 		
 		//{ BUTTON FUNCTIONS
-		// MUTATOR: set button name
+		// MUTATOR: set name
 		this.setName = function(newName){
 			this.name = newName;
 		}
@@ -975,6 +1016,120 @@ game.windowManager = (function(){
 		//} TEXT FUNCTIONS
 	}
 	
+	// CLASS: image object
+	var ImageBox = function(parentName, name, offsetX, offsetY, width, height, image) {
+		// reference names
+		this.parentName = parentName;
+		this.name = name;
+		
+		// offset from base UI element
+		this.offset = new Victor(offsetX, offsetY);
+		
+		// position of the parent element
+		this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+		
+		// global position of subelement
+		this.position = new Victor(this.parPosition.x + this.offset.x, this.parPosition.y + this.offset.y);
+		
+		// button bounds
+		this.bounds = new Victor(width, height);
+		
+		// border styling
+		this.border = {
+			color: "",
+			width: 0,
+		};
+		
+		this.fillColor = "gray";		// background fill color
+		this.image = image;				// image
+		this.isActive = true; 			// if the element is active and displayed
+		
+		// FUNCTION: update and draw button if active
+		this.updateAndDraw = function() {
+			if (this.isActive) {
+				// fill color
+				if(this.fillColor != ""){
+					ctx.fillStyle = this.fillColor;
+					ctx.fillRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
+				}
+				
+				// stroke border
+				if(this.border.color != ""){
+					ctx.strokeStyle = this.border.color;
+					ctx.lineWidth = this.border.width;
+					ctx.strokeRect(this.position.x, this.position.y, this.bounds.x, this.bounds.y);
+				}
+				
+				// draw image
+				if(this.image.src != null){
+					ctx.drawImage(this.image, this.position.x, this.position.y);
+				}
+			}
+		}
+		
+		//{ IMAGE FUNCTIONS
+		// MUTATOR: set name
+		this.setName = function(newName){
+			this.name = newName;
+		}
+		
+		// MUTATOR: set offset
+		this.setOffset = function(xOffset, yOffset){
+			this.offset = new Victor(offsetX, offsetY);
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		}
+		
+		// MUTATOR: set position
+		this.setPosition = function(xPos, yPos){
+			this.position = new Victor(xPos, yPos);
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.offset = new Victor(position.x - parPosition.x, position.y - parPosition.y);
+		}
+		
+		// FUNCTION: update position from parent
+		this.updatePos = function(){
+			this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
+			this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		}
+		
+		// MUTATOR: set bounds
+		this.setBounds = function(width, height){
+			this.bounds = new Victor(width, height);
+		}
+		
+		// MUTATOR: set border styling
+		this.setBorder = function(color, width){
+			this.border = {color:color, width:width};
+		}
+		
+		// MUTATOR: set color
+		this.setFill = function(color){
+			this.fillColor = color;
+		}
+		
+		// MUTATOR: set image
+		this.setImage = function(image){
+			this.image = image;
+		}
+		
+		// FUNCTION: toggle whether is active
+		this.toggleActive = function(){
+			this.isActive = !this.isActive;
+		}
+		
+		// FUNCTION: forcibly deactivates the element
+		this.deactivate = function(){
+			this.isActive = false;
+		};
+		
+		// FUNCTION: forcibly activate the element
+		this.activate = function(){
+			this.isActive = true;
+		};
+		//}
+	}
+	
 	return {
 		init: init,
 		updateAndDraw: updateAndDraw,
@@ -983,6 +1138,7 @@ game.windowManager = (function(){
 		makeButton: makeButton,
 		makeBar: makeBar,
 		makeText: makeText,
+		makeImage: makeImage,
 		modifyUI: modifyUI,
 		toggleUI: toggleUI,
 		activateUI: activateUI,
@@ -996,5 +1152,6 @@ game.windowManager = (function(){
 		modifyButton: modifyButton,
 		modifyBar: modifyBar,
 		modifyText: modifyText,
+		modifyImage: modifyImage
 	}
 }());

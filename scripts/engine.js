@@ -35,6 +35,13 @@ game.engine = (function(){
 	var backgroundImg3 = new Image(); // current level background 3 (third parallax, furthest)
 	var midgroundImg   = new Image(); // current level ground
 	var foregroundImg  = new Image(); // current level foreground
+	var boltRune 	   = new Image();
+	var runeRune 	   = new Image();
+	var grenadeRune    = new Image();
+	var fireRune 	   = new Image();
+	var waterRune 	   = new Image();
+	var earthRune 	   = new Image();
+	var emptyRune 	   = new Image();
 	//}
 	
 	//== GAME VARIABLES ==//{
@@ -452,10 +459,12 @@ game.engine = (function(){
 		windowManager.makeText("controlsHUD3", "cast1", 0, 0, 250, "default", "Click to cast", "14pt 'Bad Script'", "white");
 		
 		//== Register Spell Cast HUD ==//
-		windowManager.makeUI("spellHUD", canvas.width* 5/6, 0, canvas.width / 6, canvas.height / 12);
+		windowManager.makeUI("spellHUD", canvas.width* 5/6, 0, canvas.width / 6, canvas.height / 6);
 		windowManager.modifyUI("spellHUD", "fill", {color: "#3C3C3C"});
 		windowManager.modifyUI("spellHUD", "border", {color: "#222", width: 4});
-		windowManager.makeText("spellHUD", "spellCast", 30, 15, canvas.width / 6 - 20, canvas.height / 12 - 10, "", "14pt 'Bad Script'", "white");
+		windowManager.makeImage("spellHUD", "typeRune", 30, 15, 64, 64, emptyRune);
+		windowManager.makeImage("spellHUD", "elementRune", 120, 15, 64, 64, emptyRune);
+		windowManager.makeText("spellHUD", "spellCast", 30, 80, canvas.width / 6 - 20, canvas.height / 12 - 10, "", "12pt 'Bad Script'", "white");
 		
 		// BEGIN main game tick
 		update();
@@ -541,6 +550,15 @@ game.engine = (function(){
 		backgroundImg2.src = "assets/SceneryForest3.png";
 		backgroundImg3.src = "assets/SceneryForest4.png";
 		background.src 	   = "assets/SceneryForest5.png";
+		
+		//== HUD assets
+		boltRune.src 	   = "assets/boltRune.png";
+		runeRune.src 	   = "assets/runeRune.png";
+		grenadeRune.src    = "assets/grenadeRune.png";
+		fireRune.src 	   = "assets/fireRune.png";
+		waterRune.src 	   = "assets/waterRune.png";
+		earthRune.src 	   = "assets/earthRune.png";
+		emptyRune.src 	   = "assets/emptyRune.png";
 		
 		//== Enemies
 		ENEMY_TYPES.RAT.img.src 	= "assets/ratRun.png";
@@ -1050,6 +1068,7 @@ game.engine = (function(){
 						windowManager.activateUI("controlsHUD2");
 						this.spellType = "bolt";
 						this.spellName = "Bolt";
+						windowManager.modifyImage("spellHUD", "typeRune", "image", {image:boltRune});
 						break;
 					// pressed 2 - rune spell
 					case KEY.TWO:
@@ -1058,6 +1077,7 @@ game.engine = (function(){
 						windowManager.activateUI("controlsHUD2");
 						this.spellType = "rune";
 						this.spellName = "Rune";
+						windowManager.modifyImage("spellHUD", "typeRune", "image", {image:runeRune});
 						break;
 					// pressed 3 - grenade spell
 					case KEY.THREE:
@@ -1066,6 +1086,7 @@ game.engine = (function(){
 						windowManager.activateUI("controlsHUD2");
 						this.spellType = "grenade";
 						this.spellName = "Grenade";
+						windowManager.modifyImage("spellHUD", "typeRune", "image", {image:grenadeRune});
 						break;
 				}
 				windowManager.modifyText("spellHUD", "spellCast", "text", {string: this.spellName, css: "14pt 'Bad Script'", color: "white"});
@@ -1081,6 +1102,7 @@ game.engine = (function(){
 						windowManager.activateUI("controlsHUD3");
 						this.spellElement = "fire";
 						this.spellName += " of Fire";
+						windowManager.modifyImage("spellHUD", "elementRune", "image", {image:fireRune});
 						break;
 					// pressed 2 - water spell
 					case KEY.TWO:
@@ -1089,6 +1111,7 @@ game.engine = (function(){
 						windowManager.activateUI("controlsHUD3");
 						this.spellElement = "water";
 						this.spellName += " of Water";
+						windowManager.modifyImage("spellHUD", "elementRune", "image", {image:waterRune});
 						break;
 					// pressed 3 - earth spell
 					case KEY.THREE:
@@ -1097,6 +1120,7 @@ game.engine = (function(){
 						windowManager.activateUI("controlsHUD3");
 						this.spellElement = "earth";
 						this.spellName += " of Earth";
+						windowManager.modifyImage("spellHUD", "elementRune", "image", {image:earthRune});
 						break;
 				}
 				windowManager.modifyText("spellHUD", "spellCast", "text", {string: this.spellName, css: "14pt 'Bad Script'", color: "white"});
@@ -1108,6 +1132,8 @@ game.engine = (function(){
 				this.spellElement = "";
 				this.spellName = "";
 				windowManager.modifyText("spellHUD", "spellCast", "text", {string: this.spellName, css: "14pt 'Bad Script'", color: "white"});
+				windowManager.modifyImage("spellHUD", "typeRune", "image", {image:emptyRune});
+				windowManager.modifyImage("spellHUD", "elementRune", "image", {image:emptyRune});
 				windowManager.deactivateUI("controlsHUD2");
 				windowManager.deactivateUI("controlsHUD3");
 				windowManager.activateUI("controlsHUD");
