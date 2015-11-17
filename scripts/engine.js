@@ -804,31 +804,21 @@ game.engine = (function(){
 		if (currentGameState != GAME_STATE.DEAD) {
 			game.windowManager.updateAndDraw([]);
 			
-			/*
-			// draw score in upper right
-			var grad = ctx.createLinearGradient(0, 0, 150, 0);
-			grad.addColorStop(0, "rgba(0, 0, 0, 0)");
-			grad.addColorStop(1, "rgba(0, 0, 0, 0.5)");
-			ctx.fillStyle = grad;
-			ctx.fillRect(canvas.width-150, 0, 150, 50);
-			fillText(ctx, "Score: " + score, canvas.width - 75, 25, "20pt Calibri", "white");
-			ctx.fill();
-			*/
 			// Draw health and mana orb HUD elements
-			// Red health gradient
 			ctx.save();
 			
+			// Red health gradient
 			var gradHealth = ctx.createLinearGradient(0, 0, 0, 150);
 				gradHealth.addColorStop(0, "rgb(100, 100, 100)");
 				gradHealth.addColorStop(1 - clamp(player.health/player.maxHealth, 0, 1), "rgb(100, 100, 100)");
-				gradHealth.addColorStop(1 - clamp(player.health/player.maxHealth, 0, 1), "rgb(170, 0, 0)");
-				gradHealth.addColorStop(1, "rgb(170, 0, 0)");
+				gradHealth.addColorStop(1 - clamp(player.health/player.maxHealth, 0, 1), "rgb(135, 0, 60)");
+				gradHealth.addColorStop(1, "rgb(135, 0, 60)");
 			// Blue mana gradient
 			var gradMana = ctx.createLinearGradient(0, 0, 0, 150);
 				gradMana.addColorStop(0, "rgb(100, 100, 100)");
 				gradMana.addColorStop(1 - clamp(player.mana/player.maxMana, 0, 1), "rgb(100, 100, 100)");
-				gradMana.addColorStop(1 - clamp(player.mana/player.maxMana, 0, 1), "rgb(0, 0, 150)");
-				gradMana.addColorStop(1, "rgb(0, 0, 150)");
+				gradMana.addColorStop(1 - clamp(player.mana/player.maxMana, 0, 1), "rgb(60, 55, 160)");
+				gradMana.addColorStop(1, "rgb(60, 55, 160)");
 			// Dark orb shadow gradient
 			var radial = ctx.createRadialGradient(75, 75, 75, 75, 75, 0);
 				radial.addColorStop(0, "rgba(0, 0, 0, 0.65)");
