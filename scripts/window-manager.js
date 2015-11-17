@@ -128,12 +128,20 @@ game.windowManager = (function(){
 	
 	// FUNCTION: forcibly deactivates UI element
 	function deactivateUI(name){
-		uiElements.find(name).deactivate();
+		if (name === "all")
+			for (var i = 0; i < uiElements.length; ++i)
+				uiElements[i].deactivate();
+		else
+			uiElements.find(name).deactivate();
 	};
 	
 	// FUNCTION: forcibly activate UI element
 	function activateUI(name){
-		uiElements.find(name).activate();
+		if (name === "all")
+			for (var i = 0; i < uiElements.length; ++i)
+				uiElements[i].activate();
+		else
+			uiElements.find(name).activate();
 	};
 		
 	// FUNCTION: toggle whether UI pauses game when active
@@ -297,7 +305,6 @@ game.windowManager = (function(){
 				break;
 			case("text"):
 				text.setText(args.string, args.css, args.color);
-				console.log(args.string);
 				break;
 			case("target"):
 				text.setTarget(args.targets);
@@ -413,7 +420,8 @@ game.windowManager = (function(){
 				}
 				
 				// draw image
-				if(this.image.src != null){
+				if(this.image.src != null && this.image.src != "" && this.image.src != undefined){
+					console.log(this.image + ", " + this.image.src);
 					ctx.drawImage(this.image, this.position.x, this.position.y);
 				}
 				

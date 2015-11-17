@@ -13,6 +13,7 @@ var KEY = {					// "enum" equating keycodes to names (e.g. keycode 32 = spacebar
 		FIVE: 53,
 		SIX: 54,
 		A: 65,
+		C: 67,
 		D: 68,
 		E: 69,
 		H: 72,
@@ -20,7 +21,9 @@ var KEY = {					// "enum" equating keycodes to names (e.g. keycode 32 = spacebar
 		Q: 81,
 		R: 82,
 		S: 83,
-		W: 87
+		W: 87,
+		X: 88,
+		Z: 90
 	};
 
 // get mouse pos on canvas
