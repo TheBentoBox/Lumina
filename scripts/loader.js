@@ -8,7 +8,6 @@ window.onload = function() {
 	console.log("Loading game...");
 	game.windowManager.init();
 	game.engine.loadAssets();
-	game.engine.init();
 };
 
 window.onblur = function() {

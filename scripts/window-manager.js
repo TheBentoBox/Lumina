@@ -1040,7 +1040,7 @@ game.windowManager = (function(){
 			width: 0,
 		};
 		
-		this.fillColor = "gray";		// background fill color
+		this.fillColor = "rgba(0, 0, 0, 0)"; // background fill color
 		this.image = image;				// image
 		this.isActive = true; 			// if the element is active and displayed
 		

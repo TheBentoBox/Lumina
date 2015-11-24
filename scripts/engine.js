@@ -30,11 +30,6 @@ game.engine = (function(){
 	var background 	   = new Image();
 	var cloud 		   = new Image();
 	var star 		   = new Image();
-	var backgroundImg1 = new Image(); // current level background 1 (first parallax, closest)
-	var backgroundImg2 = new Image(); // current level background 2 (second parallax)
-	var backgroundImg3 = new Image(); // current level background 3 (third parallax, furthest)
-	var midgroundImg   = new Image(); // current level ground
-	var foregroundImg  = new Image(); // current level foreground
 	var boltRune 	   = new Image();
 	var runeRune 	   = new Image();
 	var grenadeRune    = new Image();
@@ -65,15 +60,15 @@ game.engine = (function(){
 	//== Player
 	var player = {};			// the player object
 	//== Level
-	var TERRAIN_WIDTH = 100;	// width of a terrain tile
+	var TERRAIN_WIDTH = 10;		// width of a terrain tile
 	var TERRAIN_HEIGHT = 0; 	// height of terrain from the bottom of the screen
-	var LEVEL_WIDTH = 150;		// width of a level in tiles, pixel width is this*TERRAIN_WIDTH
+	var LEVEL_WIDTH = 3000;		// width of a level in tiles, pixel width is this*TERRAIN_WIDTH
 	var level = [];				// array storing the map of the current level
-	var screenX = 0;			// current horizontal position of camera in level
-	var levelWidth = function() { return LEVEL_WIDTH*TERRAIN_WIDTH; }
+	var screenX = (LEVEL_WIDTH*TERRAIN_WIDTH)/2 - 640;	// current horizontal position of camera in level
+	function levelWidth() { return LEVEL_WIDTH*TERRAIN_WIDTH; }
 	//== Enemies
 	var enemies = [];
-	var ENEMY_TYPES = {
+	var ENEMY_TYPE = {
 		GATOR: {
 			name: "GATOR",
 			health: 75,
@@ -102,16 +97,87 @@ game.engine = (function(){
 			AI: "flying"
 		}
 	}
+	//== Biomes
+	var BIOME = {
+		CLEARING: {
+			display: "Clearing",
+			id: 2,
+			enemies: [],
+			environmentImgs: []
+		},
+		FOREST: {
+			display: "Dark Forest",
+			id: -1,
+			enemies: [ENEMY_TYPE.RAT, ENEMY_TYPE.BAT],
+			environmentImgs: []
+		},
+		BOG: {
+			display: "Bog",
+			id: -1,
+			enemies: [ENEMY_TYPE.GATOR, ENEMY_TYPE.BAT],
+			environmentImgs: []
+		},
+		CAVE: {
+			display: "Cave",
+			id: -1,
+			enemies: [ENEMY_TYPE.RAT, ENEMY_TYPE.BAT],
+			environmentImgs: []
+		},
+		MOUNTAIN: {
+			display: "Desert",
+			id: -1,
+			enemies: [ENEMY_TYPE.GATOR, ENEMY_TYPE.RAT],
+			environmentImgs: []
+		}
+	};
+	var biome0 = {};
+	var biome1 = {};
+	var biome2 = BIOME.CLEARING;
+	var biome3 = {};
+	var biome4 = {};
+	// returns a biome ID give a lerp across the level
+	function biomeAt(position) {
+		return level[clamp(Math.round((position.x/levelWidth()) * LEVEL_WIDTH), 0, LEVEL_WIDTH - 1)];
+	}
+	// returns a biome object given an ID
+	function biomeFromID(id) {
+		switch (id) {
+			case 0: return biome0; break;
+			case 1: return biome1; break;
+			case 3: return biome3; break;
+			case 4: return biome4; break;
+			default: return biome2; break;
+		}
+	}
 	//== Light Sources
 	var lightSources = [];
-	// helper functions
-	var globalFire = function() { return {r: 225, g: 175, b: 20}; };
-	var globalWater = function() { return {r: 20, g: 100, b: 200}; };
-	var globalEarth = function() { return {r: 20, g: 200, b: 50}; };
+	// helper functions to get global element light colors
+	function globalFire() { return {r: 225, g: 175, b: 20}; };
+	function globalWater() { return {r: 20, g: 100, b: 200}; };
+	function globalEarth() { return {r: 20, g: 200, b: 50}; };
+	//== Generic objects (scenery, harvestables, etc)
+	var objects = [];
+	var OBJECT = {
+		GLOWSHROOM: {
+			randomBiomes: [BIOME.BOG, BIOME.CAVE],
+			spawnChance: 0.025,
+			spawnInGroups: 3,
+			harvestable: -1,
+			img: new Image(),
+			xTiles: 6,
+			yTiles: 1,
+			light: {
+				color: globalWater(),
+				radius: 100,
+				scaleOnHarvest: 0.12,
+				alpha: 0.75
+			}
+		}
+	};
 	//== Particle Systems
 	var particleSystems = [];
 	var particles = [];
-	var PARTICLE_TYPES = {		// enum storing particle type info
+	var PARTICLE_TYPE = {		// enum storing particle type info
 		BURN: {
 			collidesTerrain: false,
 			lighting: true,
@@ -185,7 +251,7 @@ game.engine = (function(){
 	}
 	//== Projectiles
 	var projectiles = [];
-	var PROJECTILE_TYPES = {
+	var PROJECTILE_TYPE = {
 		FIREBOLT: {
 			strength: 10,
 			img: new Image(),
@@ -195,12 +261,12 @@ game.engine = (function(){
 			velocity: 15,
 			cost: 10,
 			color: globalFire(),
-			particle: PARTICLE_TYPES.FLAME,
+			particle: PARTICLE_TYPE.FLAME,
 			particleLifetime: 6,
 			particlesPerFrame: 3
 		},
 		WATERBOLT: {
-			strength: 3,
+			strength: 7,
 			img: new Image(),
 			width: 40,
 			height: 40,
@@ -208,7 +274,7 @@ game.engine = (function(){
 			velocity: 22,
 			cost: 7,
 			color: globalWater(),
-			particle: PARTICLE_TYPES.WATERDRIP,
+			particle: PARTICLE_TYPE.WATERDRIP,
 			particleLifetime: 20,
 			particlesPerFrame: 1
 		},
@@ -221,12 +287,12 @@ game.engine = (function(){
 			velocity: 20,
 			cost: 20,
 			color: globalEarth(),
-			particle: PARTICLE_TYPES.EARTH,
+			particle: PARTICLE_TYPE.EARTH,
 			particleLifetime: -1,
 			particlesPerFrame: 0.1
 		},
 		FIREGRENADE: {
-			strength: 15,
+			strength: 26.66,
 			img: new Image(),
 			width: 55,
 			height: 55,
@@ -234,13 +300,13 @@ game.engine = (function(){
 			velocity: 13,
 			cost: 40,
 			color: globalFire(),
-			particle: PARTICLE_TYPES.FLAME,
-			particleExplode: PARTICLE_TYPES.FLAMEEXPLODE,
+			particle: PARTICLE_TYPE.FLAME,
+			particleExplode: PARTICLE_TYPE.FLAMEEXPLODE,
 			particleLifetime: 6,
 			particlesPerFrame: 3
 		},
 		WATERGRENADE: {
-			strength: 12,
+			strength: 20,
 			img: new Image(),
 			width: 75,
 			height: 75,
@@ -248,13 +314,13 @@ game.engine = (function(){
 			velocity: 15,
 			cost: 30,
 			color: globalWater(),
-			particle: PARTICLE_TYPES.WATERDRIP,
-			particleExplode: PARTICLE_TYPES.WATEREXPLODE,
+			particle: PARTICLE_TYPE.WATERDRIP,
+			particleExplode: PARTICLE_TYPE.WATEREXPLODE,
 			particleLifetime: -1,
 			particlesPerFrame: 1
 		},
 		EARTHGRENADE: {
-			strength: 20,
+			strength: 33.33,
 			img: new Image(),
 			width: 65,
 			height: 65,
@@ -263,38 +329,38 @@ game.engine = (function(){
 			cost: 50,
 			color: globalEarth(),
 			//terrainHitSnd: "clink.mp3"
-			particle: PARTICLE_TYPES.EARTH,
-			particleExplode: PARTICLE_TYPES.EARTHEXPLODE,
+			particle: PARTICLE_TYPE.EARTH,
+			particleExplode: PARTICLE_TYPE.EARTHEXPLODE,
 			particleLifetime: -1,
 			particlesPerFrame: 0.1,
 		}
 	}
 	//== Runes
-	var RUNE_TYPES = {
+	var RUNE_TYPE = {
 		FIRE: {
 			width: 130,
-			strength: 22,
+			strength: 25,
 			cost: 25,
 			color: globalFire(),
-			particle: PARTICLE_TYPES.FLAMEFOUNTAIN,
+			particle: PARTICLE_TYPE.FLAMEFOUNTAIN,
 			particleLifetime: -1,
 			particlesPerFrame: 3
 		},
 		WATER: {
 			width: 100,
 			strength: 30,
-			cost: 35,
+			cost: 30,
 			color: globalWater(),
-			particle: PARTICLE_TYPES.WATERFOUNTAIN,
+			particle: PARTICLE_TYPE.WATERFOUNTAIN,
 			particleLifetime: -1,
 			particlesPerFrame: 1
 		},
 		EARTH: {
 			width: 160,
-			strength: 15,
+			strength: 20,
 			cost: 20,
 			color: globalEarth(),
-			particle: PARTICLE_TYPES.EARTHFOUNTAIN,
+			particle: PARTICLE_TYPE.EARTHFOUNTAIN,
 			particleLifetime: -1,
 			particlesPerFrame: 0.1
 		}
@@ -303,8 +369,8 @@ game.engine = (function(){
 	//}
 	
 	//== PHYSICS VARIABLES ==//
-	var GRAVITY = 40;			// global gravity - this*dt added to velocity.y
-	var inControl = function() { return currentGameState === GAME_STATE.IDLE || currentGameState === GAME_STATE.CASTING; }
+	var GRAVITY = 40;			// global gravity; this*dt added to velocity.y
+	function inControl() { return currentGameState === GAME_STATE.IDLE || currentGameState === GAME_STATE.CASTING; }
 	
 	//== GLOBAL HELPERS! ==//
 	//== Array Safe Splice
@@ -481,18 +547,11 @@ game.engine = (function(){
 		// prepare the level
 		setupLevel();
 		
-		// reset lists
-		enemies = [];
-		projectiles = [];
-		lightSources = [];
-		particles = [];
-		particleSystems = [];
-		
 		// create the player
 		player = new Player();
 
 		// attach a light source to the player
-		lightSources.push(new LightSource(player, {r: 255, g: 255, b: 255}, 200, -1, true, false));
+		lightSources.push(new LightSource(player, {r: 255, g: 255, b: 255}, 200, -1, true, false, 1));
 		
 		// start music loop
 		bgAudio.play();
@@ -504,18 +563,104 @@ game.engine = (function(){
 		++currentLevel;
 		screenX = (LEVEL_WIDTH*TERRAIN_WIDTH)/2 - canvas.width/2; // center player on level
 		
-		//== Load the level ==//
-		//loadLevel();
-		windowManager.activateUI("controlsHUD");
-		windowManager.activateUI("spellHUD");
-		
 		//== Reset entities ==//
+		enemies = [];
 		particles = [];
 		particleSystems = [];
 		projectiles = [];
+		lightSources = [];
 		
-		//== Starting Enemy ==//
-		enemies[0] = new Enemy(ENEMY_TYPES.GATOR);
+		//== Prepare the level ==//
+		// Assign biome IDs //{
+		// Map goes bog > forest > tower clearing < mountain < cave
+		// can be flipped randomly per game, just for a little variance
+		if (Math.round(Math.random()) === 0) {
+			biome0 = BIOME.BOG;
+			biome1 = BIOME.FOREST;
+			biome3 = BIOME.MOUNTAIN;
+			biome4 = BIOME.CAVE;
+			BIOME.BOG.id = 0;
+			BIOME.FOREST.id = 1;
+			BIOME.MOUNTAIN.id = 3;
+			BIOME.CAVE.id = 4;
+		}
+		else {
+			biome0 = BIOME.CAVE;
+			biome1 = BIOME.MOUNTAIN;
+			biome3 = BIOME.FOREST;
+			biome4 = BIOME.BOG;
+			BIOME.CAVE.id = 0;
+			BIOME.MOUNTAIN.id = 1;
+			BIOME.FOREST.id = 3;
+			BIOME.BOG.id = 4;
+		}
+		//}
+		// Generate level grid //{
+		for (var i = 0; i < LEVEL_WIDTH; ++i) {
+			// get % across level
+			var lerp = i/LEVEL_WIDTH;
+			
+			// Biome 0
+			if (lerp < 0.2)
+				level[i] = 0;
+			// 0-1 transition
+			if (lerp >= 0.2 && lerp < 0.25)
+				level[i] = (lerp - 0.2)/0.05;
+			// Biome 1
+			if (lerp >= 0.25 && lerp < 0.425)
+				level[i] = 1;
+			// 1-2 transition
+			if (lerp >= 0.425 && lerp < 0.475)
+				level[i] = 1 + (lerp-0.425)/0.05;
+			// Biome 2 (clearing)
+			if (lerp >= 0.475 && lerp < 0.525)
+				level[i] = 2;
+			// 2-3 transition
+			if (lerp >= 0.525 && lerp < 0.575)
+				level[i] = 2 + (lerp-0.525)/0.05;
+			// Biome 3
+			if (lerp >= 0.575 && lerp < 0.75)
+				level[i] = 3;
+			// 1-2 transition
+			if (lerp >= 0.75 && lerp < 0.8)
+				level[i] = 3 + (lerp-0.75)/0.05;
+			// Biome 4
+			if (lerp >= 0.8)
+				level[i] = 4;
+				
+			//== Attempt to create game objects at each tile
+			// get the biome object
+			var biome = biomeFromID(Math.round(level[i]));
+			for (var key in OBJECT) {
+				// rule out base object properties
+				if (OBJECT.hasOwnProperty(key)) {
+					// 1) check if the object can spawn in this biome
+					// 2) do a random number check against its spawn chance
+					if (OBJECT[key].randomBiomes.indexOf(biome) != -1 && Math.random() < OBJECT[key].spawnChance) {
+						// create the new object
+						objects.push(new WorldObject(OBJECT[key], Victor(i*TERRAIN_WIDTH, TERRAIN_HEIGHT)));
+						
+						// get how many objects should spawn - at least 1, maybe more if they spawn in groups
+						var numObjects = 1;
+						if (OBJECT[key].spawnInGroups >= 1.5) {
+							numObjects = Math.round(rand(1, OBJECT[key].spawnInGroups));
+						}
+						
+						// loop and create objects
+						var groupStart = (i*TERRAIN_WIDTH) - (numObjects*(OBJECT[key].img.width/OBJECT[key].xTiles))/2;
+						for (var x = 0; x < numObjects; ++x) {
+							objects.push(new WorldObject(OBJECT[key], Victor(groupStart + x*(OBJECT[key].img.width/OBJECT[key].xTiles), TERRAIN_HEIGHT)));
+						}
+						break;
+					}
+				}
+			}
+		}
+		//}
+		
+		//== Prepare UI ==//
+		windowManager.activateUI("controlsHUD");
+		windowManager.activateUI("spellHUD");
 		
 		// Begin running!
 		currentGameState = GAME_STATE.IDLE;
@@ -539,17 +684,68 @@ game.engine = (function(){
 		xhr.send();
 	}
 	
+	// Preloads an image into a new canvas and returns the canvas
+	function preloadImage(src) {
+		// Create the image and the canvas to draw it to, then load it in
+		var newImg = new Image(); newImg.src = src;
+		var newCanvas = document.createElement('canvas');
+		
+		// Configure canvas once it's loaded
+		newImg.onload = function() {
+			newCanvas.width = newImg.width;
+			newCanvas.height = newImg.height;
+			newCanvas.getContext('2d').drawImage(newImg, 0, 0);
+		}
+		
+		return newCanvas;
+	}
+	
 	// Load game assets (images and sounds)
 	function loadAssets() {
 		//== Level assets
 		star.src 		   = "assets/star.png";
 		cloud.src 		   = "assets/cloud.png";
-		foregroundImg.src  = "assets/SceneryForest0.png";
-		midgroundImg.src   = "assets/SceneryForest1.png";
-		backgroundImg1.src = "assets/SceneryForest2.png";
-		backgroundImg2.src = "assets/SceneryForest3.png";
-		backgroundImg3.src = "assets/SceneryForest4.png";
-		background.src 	   = "assets/SceneryForest5.png";
+		
+		//== Biome Assets //{
+		// Clearing
+		BIOME.CLEARING.environmentImgs[0] = preloadImage("");
+		BIOME.CLEARING.environmentImgs[1] = preloadImage("assets/SceneryClearing1.png");
+		BIOME.CLEARING.environmentImgs[2] = preloadImage("assets/SceneryClearing2.png");
+		BIOME.CLEARING.environmentImgs[3] = preloadImage("");
+		BIOME.CLEARING.environmentImgs[4] = preloadImage("assets/SceneryClearing4.png");
+		BIOME.CLEARING.environmentImgs[5] = preloadImage("assets/SceneryClearing5.png");
+		// Forest
+		BIOME.FOREST.environmentImgs[0] = preloadImage("assets/SceneryForest0.png");
+		BIOME.FOREST.environmentImgs[1] = preloadImage("assets/SceneryForest1.png");
+		BIOME.FOREST.environmentImgs[2] = preloadImage("assets/SceneryForest2.png");
+		BIOME.FOREST.environmentImgs[3] = preloadImage("assets/SceneryForest3.png");
+		BIOME.FOREST.environmentImgs[4] = preloadImage("assets/SceneryForest4.png");
+		BIOME.FOREST.environmentImgs[5] = preloadImage("assets/SceneryForest5.png");
+		// Bog
+		BIOME.BOG.environmentImgs[0] = preloadImage("assets/SceneryBog0.png");
+		BIOME.BOG.environmentImgs[1] = preloadImage("assets/SceneryBog1.png");
+		BIOME.BOG.environmentImgs[2] = preloadImage("assets/SceneryBog2.png");
+		BIOME.BOG.environmentImgs[3] = preloadImage("assets/SceneryBog3.png");
+		BIOME.BOG.environmentImgs[4] = preloadImage("assets/SceneryBog4.png");
+		BIOME.BOG.environmentImgs[5] = preloadImage("assets/SceneryBog5.png");
+		// Cave
+		BIOME.CAVE.environmentImgs[0] = preloadImage("assets/SceneryCave0.png");
+		BIOME.CAVE.environmentImgs[1] = preloadImage("assets/SceneryCave1.png");
+		BIOME.CAVE.environmentImgs[2] = preloadImage("assets/SceneryCave2.png");
+		BIOME.CAVE.environmentImgs[3] = preloadImage("assets/SceneryCave3.png");
+		BIOME.CAVE.environmentImgs[4] = preloadImage("assets/SceneryCave4.png");
+		BIOME.CAVE.environmentImgs[5] = preloadImage("assets/SceneryCave5.png");
+		// Mountain
+		BIOME.MOUNTAIN.environmentImgs[0] = preloadImage("assets/SceneryMountain0.png");
+		BIOME.MOUNTAIN.environmentImgs[1] = preloadImage("assets/SceneryMountain1.png");
+		BIOME.MOUNTAIN.environmentImgs[2] = preloadImage("assets/SceneryMountain2.png");
+		BIOME.MOUNTAIN.environmentImgs[3] = preloadImage("assets/SceneryMountain3.png");
+		BIOME.MOUNTAIN.environmentImgs[4] = preloadImage("assets/SceneryMountain4.png");
+		BIOME.MOUNTAIN.environmentImgs[5] = preloadImage("assets/SceneryMountain5.png");
+		//}
+		
+		//== Game Objects
+		OBJECT.GLOWSHROOM.img = preloadImage("assets/GlowbitMushrooms.png");
 		
 		//== HUD assets
 		boltRune.src 	   = "assets/boltRune.png";
@@ -561,22 +757,24 @@ game.engine = (function(){
 		emptyRune.src 	   = "assets/emptyRune.png";
 		
 		//== Enemies
-		ENEMY_TYPES.RAT.img.src 	= "assets/ratRun.png";
-		ENEMY_TYPES.BAT.img.src 	= "assets/batRun.png";
-		ENEMY_TYPES.GATOR.img.src 	= "assets/gatorRun.png";
+		ENEMY_TYPE.RAT.img 		= preloadImage("assets/ratRun.png");
+		ENEMY_TYPE.BAT.img 		= preloadImage("assets/batRun.png");
+		ENEMY_TYPE.GATOR.img 	= preloadImage("assets/gatorRun.png");
 		
 		//== Projectiles
-		PROJECTILE_TYPES.FIREBOLT.img.src 		= "assets/firebolt.png";
-		PROJECTILE_TYPES.FIREGRENADE.img.src 	= "assets/firegrenade.png";
-		PROJECTILE_TYPES.WATERBOLT.img.src 		= "assets/waterbolt.png";
-		PROJECTILE_TYPES.WATERGRENADE.img.src	= "assets/watergrenade.png";
-		PROJECTILE_TYPES.EARTHBOLT.img.src 		= "assets/earthbolt.png";
-		PROJECTILE_TYPES.EARTHGRENADE.img.src 	= "assets/earthgrenade.png";
+		PROJECTILE_TYPE.FIREBOLT.img 		= preloadImage("assets/firebolt.png");
+		PROJECTILE_TYPE.FIREGRENADE.img 	= preloadImage("assets/firegrenade.png");
+		PROJECTILE_TYPE.WATERBOLT.img 		= preloadImage("assets/waterbolt.png");
+		PROJECTILE_TYPE.WATERGRENADE.img	= preloadImage("assets/watergrenade.png");
+		PROJECTILE_TYPE.EARTHBOLT.img 		= preloadImage("assets/earthbolt.png");
+		PROJECTILE_TYPE.EARTHGRENADE.img 	= preloadImage("assets/earthgrenade.png");
 		
 		//== Particles
-		PARTICLE_TYPES.FLAME.img.src = PARTICLE_TYPES.FLAMEFOUNTAIN.img.src = PARTICLE_TYPES.BURN.img.src = PARTICLE_TYPES.FLAMEEXPLODE.img.src = "assets/flameParticle.png";
-		PARTICLE_TYPES.WATERDRIP.img.src = PARTICLE_TYPES.WATERFOUNTAIN.img.src = PARTICLE_TYPES.WATEREXPLODE.img.src = "assets/dripParticle.png";
-		PARTICLE_TYPES.EARTH.img.src = PARTICLE_TYPES.EARTHFOUNTAIN.img.src = PARTICLE_TYPES.EARTHEXPLODE.img.src = "assets/earthParticle.png";
+		PARTICLE_TYPE.FLAME.img = PARTICLE_TYPE.FLAMEFOUNTAIN.img = PARTICLE_TYPE.BURN.img = PARTICLE_TYPE.FLAMEEXPLODE.img = preloadImage("assets/flameParticle.png");
+		PARTICLE_TYPE.WATERDRIP.img = PARTICLE_TYPE.WATERFOUNTAIN.img = PARTICLE_TYPE.WATEREXPLODE.img = preloadImage("assets/dripParticle.png");
+		PARTICLE_TYPE.EARTH.img = PARTICLE_TYPE.EARTHFOUNTAIN.img = PARTICLE_TYPE.EARTHEXPLODE.img = preloadImage("assets/earthParticle.png");
+		
+		init();
 	}
 	
 	// play a sound effect
@@ -587,14 +785,29 @@ game.engine = (function(){
 	}
 	
 	// parallax an image across screen
-	function parallax(context, plxImg, scalar) {
+	function parallax(context, plxImg, scalar, alpha) {
 		context.save();
+			context.globalAlpha = alpha;
+			
 			// scale so parallax fits height-wise on screen
 			var imgScale = canvas.height/plxImg.height;
 			
-			for (var i = -((screenX*scalar) % (plxImg.width*imgScale)); i < canvas.width; i += (plxImg.width*imgScale))
+			for (var i = -((screenX*scalar) % (plxImg.width*imgScale)); i < canvas.width; i += (plxImg.width*imgScale)) {
 				context.drawImage(plxImg, i, 0, plxImg.width*imgScale, canvas.height);
+			}
 		context.restore();
+	}
+	
+	// FUNCTION: checks if the object 'o' is on screen
+	function onScreen(o) {
+		// get world object position in screen coords
+		var p = o.position.clone(); p.x -= screenX;
+		return (p.x < canvas.width && p.x + o.bounds.x > 0 && p.y < canvas.height && p.y + o.bounds.y > 0);
+	}
+	
+	// FUNCTION: checks if the object 'o' is within the level (with a little wiggle room)
+	function inLevel(o) {
+		return (o.position.x < levelWidth() + 200 && o.position.x + o.bounds.x > -200 && o.position.y < canvas.height + 200 && o.position.y + o.bounds.y > -200);
 	}
 	
 	// main game tick
@@ -629,7 +842,7 @@ game.engine = (function(){
 			}
 			// otherwise, draw an error message
 			else {
-				fillText(ctx, "Your system does not support high score storage", canvas.width/2, canvas.height/2, "18pt 'Bad Script'", "white");
+				fillText(ctx, "Your system does not support high score storage.", canvas.width/2, canvas.height/2, "18pt 'Bad Script'", "white");
 			}
 			return;
 		}
@@ -640,26 +853,54 @@ game.engine = (function(){
 		}
 		
 		// make screen track player
-		if (player != undefined)
+		if (player != undefined) {
 			screenX = clamp(player.position.x + player.bounds.x/2 - canvas.width/2, 0, levelWidth() - canvas.width);
+		}
+			
+		// get how far across level we are; used for drawing appropriate biome stuff
+		var levelLerp = (screenX + canvas.width/2)/levelWidth();
 		
 		// == Main Draw ==//
 		//== Clear the canvases
 		offCtx.clearRect(0, 0, canvas.width, canvas.height);
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		//== Level parallaxes
-		// Background 3 - furthest
-		parallax(offCtx, backgroundImg3, 0.55);
-		// Background 2 - middle
-		parallax(offCtx, backgroundImg2, 0.7);
-		// Background 1 - closest
-		parallax(offCtx, backgroundImg1, 0.85);
-		// Ground
-		parallax(offCtx, midgroundImg, 1);
+		
+		//== Prepare Biomes
+		var biomeNum = biomeAt(player.position);			  // get the decimal ID of the biome based on player's X
+		var biomeCurrent = biomeFromID(Math.round(biomeNum)); // get the current biome
+		var biomeCeil = biomeFromID(Math.ceil(biomeNum));
+		var biomeFloor = biomeFromID(Math.floor(biomeNum));
+		// we'll draw the parallaxes as differing alphas to fade between them
+		var biomeAlpha = biomeNum % 1;
+		
+		//== Biome parallaxes
+		// simulate the biome transition if we're moving between biomes
+		for (var i = 4; i > 0; --i) {
+			if (biomeCeil != biomeCurrent || biomeFloor != biomeCurrent) {
+				// Draw parallax 4 at correct 
+				// get the alpha
+				var alpha = (biomeAlpha > (i-1)*0.25 ? (biomeAlpha - (i-1)*0.25)/0.25 : 0);
+				if (biomeAlpha > i*0.25) alpha = 1;
+				// draw each parallax at correct alpha
+				if (alpha != 1)
+					parallax(offCtx, biomeFloor.environmentImgs[i], 1.15 - (i*0.15), 1 - alpha);
+				if (alpha != 0)
+					parallax(offCtx, biomeCeil.environmentImgs[i], 1.15 - (i*0.15), alpha);
+			}
+			else {
+				parallax(offCtx, biomeCurrent.environmentImgs[i], 1.15 - (i*0.15), 1);
+			}
+		}
 		
 		//== Update & Draw All Objects ==//
 		// All entities actually draw on the offsreen canvas in their draw function
 		// We will then manipulate lighting on the offscreen canvas and move it to the onscreen
+				
+		// draw onscreen game objects
+		for (var i = 0; i < objects.length; ++i) {
+			if (onScreen(objects[i]))
+				objects[i].draw();
+		}
 		
 		// only actually update if player is in control or they're off the ground
 		// we also update if they're off the ground so they don't freeze midair between levels
@@ -701,15 +942,8 @@ game.engine = (function(){
 		}
 		
 		// add an enemy if there isn't one
-		if (enemies.length < 50 && Math.random() < 0.01) {
-			switch(Math.floor(rand(0, 2.25))) {
-				case 0: enemies.push(new Enemy(ENEMY_TYPES.GATOR));
-					break;
-				case 1: enemies.push(new Enemy(ENEMY_TYPES.RAT));
-					break;
-				default: enemies.push(new Enemy(ENEMY_TYPES.BAT));
-					break;
-			}
+		if (enemies.length < 50 && Math.random() < 0.02 && biomeCurrent.enemies.length > 0) {
+			enemies.push(new Enemy(biomeCurrent.enemies.randomElement()));
 		}
 		
 		// update enemies
@@ -744,7 +978,14 @@ game.engine = (function(){
 			lightSources[i].update();
 			
 		// Foreround
-		parallax(offCtx, foregroundImg, 1.15);
+		// simulate the biome transition if we're moving between biomes
+		if (biomeCeil != biomeCurrent || biomeFloor != biomeCurrent) {
+			parallax(offCtx, biomeFloor.environmentImgs[0], 1.15, 1 - biomeAlpha);
+			parallax(offCtx, biomeCeil.environmentImgs[0], 1.15, biomeAlpha);
+		}
+		else {
+			parallax(offCtx, biomeCurrent.environmentImgs[0], 1.15, 1);
+		}
 		
 		//== Manipulate canvas ==//
 		// First, draw the untouched images onto the main canvas
@@ -754,6 +995,17 @@ game.engine = (function(){
 		// Overlay everything with black
 		ctx.fillStyle = "rgba(0, 0, 0, 0.969)";
 		ctx.globalCompositeOperation = "source-atop";
+		// if we're in the clearing, give a small ambient light
+		if (biomeCeil === biomeCurrent && biomeFloor === biomeCurrent && biomeCurrent === BIOME.CLEARING) {
+			ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+		}
+		// if we're transitioning from the clearing, darken it further
+		if (biomeCeil != biomeCurrent || biomeFloor != biomeCurrent) {
+			if (biomeFloor === BIOME.CLEARING)
+				ctx.fillStyle = "rgba(0, 0, 0, " + (0.85 + biomeAlpha*.15) + ")";
+			if (biomeCeil === BIOME.CLEARING)
+				ctx.fillStyle = "rgba(0, 0, 0, " + (0.85 + (1 - biomeAlpha)*.15) + ")";
+		}
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		
 		// Next, loop through the lights and cut out the lit parts
@@ -789,15 +1041,23 @@ game.engine = (function(){
 		for (var i = 0;	i < postProcesses.length; ++i)
 			postProcesses[i]();
 		
-		
 		//== Draw static environment ==//
 		// These are drawn last, unmodified
 		// background
 		ctx.globalCompositeOperation = "destination-over";
-		parallax(ctx, background, 0.1);
+		// simulate the biome transition if we're moving between biomes
+		if (biomeCeil != biomeCurrent || biomeFloor != biomeCurrent) {
+			parallax(ctx, biomeFloor.environmentImgs[5], 1, 1 - biomeAlpha);
+			parallax(ctx, biomeCeil.environmentImgs[5], 1, biomeAlpha);
+		}
+		else {
+			parallax(ctx, biomeCurrent.environmentImgs[5], 1, 1);
+		}
+		// base background is black
+		ctx.fillStyle = "black";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		
 		ctx.restore();
-		
 		
 		//== Draw HUDs/interfaces ==//
 		ctx.globalCompositeOperation = "source-over";
@@ -906,7 +1166,7 @@ game.engine = (function(){
 			return other.position.clone().add(oBounds.clone().divide(Victor(2, 2))).subtract(this.position.clone().add(mBounds.clone().divide(Victor(2, 2))));
 		}
 		
-		// HELPER: returns whether this object overlaps another
+		// HELPER: returns whether this object overlaps the one passed in
 		this.overlaps = function(other) {
 			return (other.position.y + other.bounds.y > this.position.y && other.position.y < this.position.y + this.bounds.y
 				 && other.position.x + other.bounds.x > this.position.x && other.position.x < this.position.x + this.bounds.x);
@@ -991,8 +1251,46 @@ game.engine = (function(){
 		}.bind(this);
 	}
 	
+	// CLASS: a basic object in the world, either cosmetic, interactable, harvestable, etc.
+	function WorldObject(objectType, position) {
+		// Inherit from base GameObject
+		GameObject.call(this);
+		
+		// Basic properties
+		this.system = {};			// object's particle system
+		this.light = {};			// object's light source
+		this.harvested = false;		// whether or not this has been harvest
+		this.harvestTicks = -1;		// ticks until this regrows
+		
+		// Create initial bounds based on its image then use it to modify position
+		this.bounds = new Victor(objectType.img.width/objectType.xTiles, objectType.img.height/objectType.yTiles);
+		this.position = position;
+		this.position.y -= this.bounds.y*0.85 + 50;
+		
+		// The random artwork of this object
+		this.tile = Math.round(rand(0, objectType.xTiles - 0.51));
+		
+		// Create the object's light source if it should have one
+		if (objectType.light != {}) {
+			// set radius to default width based on setting (default = bounds.x)
+			var radius = (objectType.light.radius === "default" ? this.bounds.x : objectType.light.radius);
+			this.light = new LightSource(this, objectType.light.color, radius, -1, true, true, objectType.light.alpha);
+			lightSources.push(this.light);
+		}
+		
+		// Draw the object
+		this.draw = function() {
+			// draw the object
+			offCtx.drawImage(objectType.img, this.tile*this.bounds.x, 0, this.bounds.x, this.bounds.y, -screenX + this.position.x, this.position.y, this.bounds.x, this.bounds.y);
+			
+			// set its light source's radius based on if it's harvest
+			var rad = (objectType.light.radius === "default" ? this.bounds.x : objectType.light.radius);
+			this.light.radius = (this.harvested ? rad * scaleOnHarvest : rad);
+		}
+	}
+	
 	// CLASS: player object
-	function Player(classType) {
+	function Player() {
 		MobileObject.call(this);
 	
 		/* VARIABLES */
@@ -1008,6 +1306,10 @@ game.engine = (function(){
 		this.spellName = "";					// string naming the current spell
 		this.cooldown = 0;						// cooldown, determines whether a spell can be cast
 		this.damageTicks = 0;					// cooldown on damage
+		this.position = new Victor(				// starting player position, centered on level
+			levelWidth()/2,
+			TERRAIN_HEIGHT - this.bounds.y
+		);
 		
 		// set up image-dependent variables once the image loads
 		this.image.onload = function() {
@@ -1016,10 +1318,6 @@ game.engine = (function(){
 			this.bounds = new Victor(			// the player's bounding width and height
 				this.image.width,
 				this.image.height
-			);
-			this.position = new Victor(			// starting player position, centered on level
-				levelWidth()/2 - this.bounds.x/2,
-				TERRAIN_HEIGHT - this.bounds.y
 			);
 		}.bind(this);
 		
@@ -1141,13 +1439,13 @@ game.engine = (function(){
 						// set type to right bolt element
 						switch(this.spellElement) {
 							case "fire":
-								type = PROJECTILE_TYPES.FIREBOLT;
+								type = PROJECTILE_TYPE.FIREBOLT;
 								break;
 							case "water":
-								type = PROJECTILE_TYPES.WATERBOLT;
+								type = PROJECTILE_TYPE.WATERBOLT;
 								break;
 							case "earth":
-								type = PROJECTILE_TYPES.EARTHBOLT;
+								type = PROJECTILE_TYPE.EARTHBOLT;
 								break;
 						}
 						break;
@@ -1156,13 +1454,13 @@ game.engine = (function(){
 						// set type to right rune element
 						switch(this.spellElement) {
 							case "fire":
-								type = RUNE_TYPES.FIRE;
+								type = RUNE_TYPE.FIRE;
 								break;
 							case "water":
-								type = RUNE_TYPES.WATER;
+								type = RUNE_TYPE.WATER;
 								break;
 							case "earth":
-								type = RUNE_TYPES.EARTH;
+								type = RUNE_TYPE.EARTH;
 								break;
 						}
 						break;
@@ -1171,13 +1469,13 @@ game.engine = (function(){
 						// set type to right grenade element
 						switch(this.spellElement) {
 							case "fire":
-								type = PROJECTILE_TYPES.FIREGRENADE;
+								type = PROJECTILE_TYPE.FIREGRENADE;
 								break;
 							case "water":
-								type = PROJECTILE_TYPES.WATERGRENADE;
+								type = PROJECTILE_TYPE.WATERGRENADE;
 								break;
 							case "earth":
-								type = PROJECTILE_TYPES.EARTHGRENADE;
+								type = PROJECTILE_TYPE.EARTHGRENADE;
 								break;
 						}
 						break;
@@ -1282,25 +1580,25 @@ game.engine = (function(){
 			
 		// attach a light source and particle system based on the types declared in the projectile enum
 		this.system = new ParticleSystem(this, this.projType.particle, -1, this.projType.particleLifetime, this.projType.particlesPerFrame);
-		this.light = new LightSource(this, this.projType.color, this.projType.width*4, -1, true, true);
+		this.light = new LightSource(this, this.projType.color, this.projType.width*4, -1, true, true, 1);
 		particleSystems.push(this.system);
 		lightSources.push(this.light);
 		
 		// FUNCTION: gives a generalized string that portrays its projectile type
 		this.type = function() {
-			if (this.projType === PROJECTILE_TYPES.FIREBOLT || this.projType === PROJECTILE_TYPES.WATERBOLT || this.projType === PROJECTILE_TYPES.EARTHBOLT)
+			if (this.projType === PROJECTILE_TYPE.FIREBOLT || this.projType === PROJECTILE_TYPE.WATERBOLT || this.projType === PROJECTILE_TYPE.EARTHBOLT)
 				return "bolt";
-			if (this.projType === PROJECTILE_TYPES.FIREGRENADE || this.projType === PROJECTILE_TYPES.WATERGRENADE || this.projType === PROJECTILE_TYPES.EARTHGRENADE)
+			if (this.projType === PROJECTILE_TYPE.FIREGRENADE || this.projType === PROJECTILE_TYPE.WATERGRENADE || this.projType === PROJECTILE_TYPE.EARTHGRENADE)
 				return "grenade";
 		}
 	
 		// FUNCTION: gives a generalized string that portrays its element
 		this.element = function() {
-			if (this.projType === PROJECTILE_TYPES.FIREBOLT || this.projType === PROJECTILE_TYPES.FIREGRENADE)
+			if (this.projType === PROJECTILE_TYPE.FIREBOLT || this.projType === PROJECTILE_TYPE.FIREGRENADE)
 				return "fire";
-			if (this.projType === PROJECTILE_TYPES.WATERBOLT || this.projType === PROJECTILE_TYPES.WATERGRENADE)
+			if (this.projType === PROJECTILE_TYPE.WATERBOLT || this.projType === PROJECTILE_TYPE.WATERGRENADE)
 				return "water";
-			if (this.projType === PROJECTILE_TYPES.EARTHBOLT || this.projType === PROJECTILE_TYPES.EARTHGRENADE)
+			if (this.projType === PROJECTILE_TYPE.EARTHBOLT || this.projType === PROJECTILE_TYPE.EARTHGRENADE)
 				return "earth";
 		}
 		
@@ -1331,6 +1629,14 @@ game.engine = (function(){
 					this.velocity.multiply(Victor(0.7, -0.8));
 					++this.numBounces;
 				}
+			}
+			
+			// if the projectile is out of the level, delete it and its attachments
+			if (!inLevel(this)) {
+				// splice out the projectile's particle system, and itself
+				particleSystems.safeSplice(particleSystems.indexOf(this.system), 1);
+				projectiles.safeSplice(projectiles.indexOf(this), 1);
+				lightSources.safeSplice(lightSources.indexOf(this.light), 1);
 			}
 			
 			// update the projectile's physics
@@ -1375,7 +1681,7 @@ game.engine = (function(){
 					// them a flame particle system if it's not already on fire
 					if (this.element() === "fire") {
 						if (victim.fireTicks <= 0)
-							particleSystems.push(new ParticleSystem(victim, PARTICLE_TYPES.BURN, 60, 15, 1));
+							particleSystems.push(new ParticleSystem(victim, PARTICLE_TYPE.BURN, 60, 15, 1));
 						victim.fireTicks = 60;
 					}
 				}
@@ -1402,7 +1708,7 @@ game.engine = (function(){
 								// ignition length and particle lifetime is based on distance scalar
 								if (this.element() === "fire") {
 									if (enemy.fireTicks <= 0)
-										particleSystems.push(new ParticleSystem(enemy, PARTICLE_TYPES.BURN, 60 * scalar, 15, 1));
+										particleSystems.push(new ParticleSystem(enemy, PARTICLE_TYPE.BURN, 60 * scalar, 15, 1));
 									enemy.fireTicks = 60 * scalar;
 								}
 							}
@@ -1425,8 +1731,9 @@ game.engine = (function(){
 				return;
 			}
 				
-			// DRAW: draw the projectile
-			this.draw();
+			// DRAW: draw the projectile if it's on screen
+			if (onScreen(this))
+				this.draw();
 		}
 	
 		// FUCNTION: main projectile draw call
@@ -1449,12 +1756,13 @@ game.engine = (function(){
 		// assign starting variables
 		this.runeType = runeType;
 		this.position = new Victor(worldMouse.position.x - this.runeType.width/2, TERRAIN_HEIGHT - this.runeType.width/2);
+		this.bounds = new Victor(this.runeType.width, this.runeType.width);
 		this.light = {};
 		this.system = {};
 		
 		// create particle system and light based on rune type
 		//this.system = new ParticleSystem(this, this.projType.particle, -1, this.projType.particleLifetime, this.projType.particlesPerFrame);
-		this.light = new LightSource(this, this.runeType.color, this.runeType.width, -1, false, true);
+		this.light = new LightSource(this, this.runeType.color, this.bounds.x, -1, false, true, 1);
 		//particleSystems.push(this.system);
 		lightSources.push(this.light);
 		
@@ -1469,7 +1777,7 @@ game.engine = (function(){
 				var e = enemies[i];
 				
 				// check if enemy is above rune's center and is on the ground
-				if (e.position.x + e.bounds.x > this.position.x && e.position.x < this.position.x && e.onGround) {
+				if (e.position.x + e.bounds.x > this.position.x + this.bounds.x/2 && e.position.x < this.position.x + this.bounds.x/2 && e.onGround) {
 					triggered = true;
 				
 					// damage and knock up the enemy
@@ -1478,7 +1786,7 @@ game.engine = (function(){
 					--e.position.y;
 					
 					// create a quick 'particle burst'
-					particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: new Victor()}, this.runeType.particle, 1, this.runeType.particleLifetime, Math.min(Math.max(0.5, this.runeType.particlesPerFrame)*20, 40)));
+					particleSystems.push(new ParticleSystem({position: Victor(this.position.x + this.bounds.x/2, this.position.y), bounds: new Victor()}, this.runeType.particle, 1, this.runeType.particleLifetime, Math.min(Math.max(0.5, this.runeType.particlesPerFrame)*20, 40)));
 				}
 			}
 					
@@ -1490,8 +1798,9 @@ game.engine = (function(){
 				return;
 			}
 			
-			// draw the rune as a postprocess
-			postProcesses.push(this.draw.bind(this));
+			// draw the rune as a postprocess if it's on screen
+			if (onScreen(this))
+				postProcesses.push(this.draw.bind(this));
 		}
 		
 		// Draw
@@ -1503,7 +1812,7 @@ game.engine = (function(){
 				grad.addColorStop(0, colorString(this.runeType.color, 0));
 				grad.addColorStop(1, colorString(this.runeType.color, 0.5));
 				ctx.fillStyle = grad;
-				ctx.fillRect(-screenX + this.position.x - this.runeType.width/2, this.position.y - this.runeType.width/2, this.runeType.width, this.runeType.width);
+				ctx.fillRect(-screenX + this.position.x, this.position.y - this.runeType.width/2, this.runeType.width, this.runeType.width);
 			ctx.restore();
 		}
 	}
@@ -1582,8 +1891,9 @@ game.engine = (function(){
 			
 			this.updatePhysics();
 			
-			// DRAW: draw the enemy
-			this.draw();
+			// DRAW: draw the enemy if it's on screen
+			if (onScreen(this))
+				this.draw();
 		}
 	
 		// FUCNTION: main enemy draw call
@@ -1606,13 +1916,6 @@ game.engine = (function(){
 				offCtx.scale(this.xScale, 1);
 				offCtx.drawImage(this.enemyType.img, this.frameWidth*Math.floor(this.time), 0, this.frameWidth, this.frameHeight, (-this.bounds.x/2 + this.offset.x), -this.bounds.y/2 + this.offset.y, this.frameWidth, this.frameHeight);
 				offCtx.restore();
-				
-			// draw health above head
-			offCtx.fillStyle = "red";
-			offCtx.fillRect(this.position.x+10, this.position.y - 10, this.bounds.x-20, 5);
-			offCtx.fillStyle = "green";
-			offCtx.fillRect(this.position.x+10, this.position.y - 10, (this.bounds.x-20) * (this.health/this.maxHealth), 5);
-			offCtx.fill();
 			offCtx.restore();
 		}
 	}
@@ -1680,7 +1983,7 @@ game.engine = (function(){
 		
 		// make a small light source around the particle depending on its type
 		if (this.particleType.lighting) {
-			this.light = new LightSource(this, globalFire(), 12, -1, false, true);
+			this.light = new LightSource(this, globalFire(), 12, -1, false, true, 1);
 			lightSources.push(this.light);
 		}
 		
@@ -1712,8 +2015,9 @@ game.engine = (function(){
 				return;
 			}
 			
-			// Draw particle as a post-process (disobeys lighting)
-			postProcesses.push(this.draw.bind(this));
+			// Draw particle as a post-process if it's on screen
+			if (onScreen(this))
+				postProcesses.push(this.draw.bind(this));
 		}
 		
 		// Draw particle
@@ -1731,14 +2035,15 @@ game.engine = (function(){
 	}
  
 	// CLASS: particle system
-	function LightSource(root, color, radius, lifetime, flicker, visible) {
+	function LightSource(root, color, radius, lifetime, flicker, visible, alpha) {
 		// assign starting variables
 		this.visible = visible;					// whether or not to actually draw the light; false makes an "anit-fog of war" (visibility vs. light)
 		this.root = root;						// the object this is linked to
 		this.position = this.root.position;		// light's position
+		this.bounds = new Victor(radius*2, radius*2); // basic bounds
 		this.radius = radius;					// outer radius of the light
 		// the color of the source's light, passed as rgb object literal for use in draw call
-		this.color = colorString(color, 1);
+		this.color = colorString(color, alpha);
 		
 		// Update light source system
 		this.update = function() {
@@ -1770,8 +2075,9 @@ game.engine = (function(){
 			}
 			
 			// Draw call: set light to be drawn as a postprocess
-			// particles don't draw an actual colored glow for performance reasons
-			if (!(this.root instanceof Particle) && visible)
+			// Particles don't draw an actual colored glow for performance reasons
+			// We pass in a fake object to onScreen() to represent the light's bounding box
+			if (!(this.root instanceof Particle) && visible && onScreen({position: Victor(this.position.x - this.radius, this.position.y - this.radius), bounds: this.bounds}))
 				postProcesses.push(this.draw.bind(this));
 		}
 		
@@ -1779,20 +2085,20 @@ game.engine = (function(){
 		// This is only ever called as a post-process
 		this.draw = function() {
 			// draw the light on the canvas
-			// create a radial gradient
 			ctx.save();
-			var radial = ctx.createRadialGradient(-screenX + this.position.x, this.position.y, Math.max(this.radius, 0), -screenX + this.position.x, this.position.y, 0);
-			radial.addColorStop(0, colorString(color, 0));
-			radial.addColorStop(0.2, colorString(color, 0.05));
-			radial.addColorStop(1, colorString(color, 0.3));
-			ctx.fillStyle = radial;
-			
-			ctx.beginPath();
-			ctx.arc(-screenX + this.position.x, this.position.y, Math.max(this.radius, 0), 0, Math.PI*2, false);
-			ctx.globalCompositeOperation = "lighter";
-			ctx.fill();
-			ctx.globalCompositeOperation = "overlay";
-			ctx.fill();
+				// create a radial gradient of the light's color
+				var radial = ctx.createRadialGradient(-screenX + this.position.x, this.position.y, Math.max(this.radius, 0), -screenX + this.position.x, this.position.y, 0);
+				radial.addColorStop(0, colorString(color, 0));
+				radial.addColorStop(0.2, colorString(color, 0.05*alpha));
+				radial.addColorStop(1, colorString(color, 0.3*alpha));
+				ctx.fillStyle = radial;
+				// draw the gradient
+				ctx.beginPath();
+				ctx.arc(-screenX + this.position.x, this.position.y, Math.max(this.radius, 0), 0, Math.PI*2, false);
+				ctx.globalCompositeOperation = "lighter";
+				ctx.fill();
+				ctx.globalCompositeOperation = "overlay";
+				ctx.fill();
 			ctx.restore();
 		}
 	}
@@ -1842,8 +2148,6 @@ game.engine = (function(){
 		// send it to the player if they're not casting already
 		if (player.cooldown <= 0)
 			player.cast(e.keyCode);
-		else
-			console.log("Player can't cast");
 		
 		// spacebar - jump!
 		if (e.keyCode === KEY.SPACE || e.keyCode === KEY.W) {
