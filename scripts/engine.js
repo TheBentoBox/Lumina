@@ -27,16 +27,18 @@ game.engine = (function(){
 	//}
 	
 	//== ASSETS ==//{
-	var background 	   = new Image();
-	var cloud 		   = new Image();
-	var star 		   = new Image();
-	var boltRune 	   = new Image();
-	var runeRune 	   = new Image();
-	var grenadeRune    = new Image();
-	var fireRune 	   = new Image();
-	var waterRune 	   = new Image();
-	var earthRune 	   = new Image();
-	var emptyRune 	   = new Image();
+	var background 	  	= new Image();
+	var cloud 		  	= new Image();
+	var star 		  	= new Image();
+	var boltRune 	  	= new Image();
+	var runeRune 	  	= new Image();
+	var grenadeRune   	= new Image();
+	var fireRune 	  	= new Image();
+	var waterRune 	  	= new Image();
+	var earthRune 	  	= new Image();
+	var emptyRune 	  	= new Image();
+	var numImages	  	= 0;
+	var numImagesLoaded = 0;
 	//}
 	
 	//== GAME VARIABLES ==//{
@@ -390,17 +392,8 @@ game.engine = (function(){
 	
 	
 	// Set up canvas and game variables
-	function init() {
-		// SETUP: canvas and audio
-		// canvas
-		canvas = document.querySelector('canvas');
-		ctx = canvas.getContext("2d");
-		// offscreen canvas
-		offCanvas = document.createElement("canvas");
-		offCanvas.width = canvas.width; offCanvas.height = canvas.height;
-		offCtx = offCanvas.getContext("2d");
-		
-		// set level variables now that canvas is loaded
+	function init() {		
+		// set level variables
 		TERRAIN_HEIGHT = canvas.height - 150;
 		
 		// get reference to audio element
@@ -689,29 +682,52 @@ game.engine = (function(){
 		// Create the image and the canvas to draw it to, then load it in
 		var newImg = new Image(); newImg.src = src;
 		var newCanvas = document.createElement('canvas');
+		++numImages;
 		
 		// Configure canvas once it's loaded
 		newImg.onload = function() {
 			newCanvas.width = newImg.width;
 			newCanvas.height = newImg.height;
 			newCanvas.getContext('2d').drawImage(newImg, 0, 0);
+			++numImagesLoaded;
 		}
 		
 		return newCanvas;
 	}
 	
+	// Preloads an image with no canvas and returns the image
+	function preloadImageNoCanvas(src) {
+		// Create the image, then load it in
+		var newImg = new Image(); newImg.src = src;
+		++numImages;
+		
+		// Configure canvas once it's loaded
+		newImg.onload = function() {
+			++numImagesLoaded;
+		}
+		
+		return newImg;
+	}
+	
 	// Load game assets (images and sounds)
 	function loadAssets() {
-		//== Level assets
-		star.src 		   = "assets/star.png";
-		cloud.src 		   = "assets/cloud.png";
-		
+		//== Prepare canvases
+		// canvas
+		canvas = document.querySelector('canvas');
+		ctx = canvas.getContext("2d");
+		// offscreen canvas
+		offCanvas = document.createElement("canvas");
+		offCanvas.width = canvas.width; offCanvas.height = canvas.height;
+		offCtx = offCanvas.getContext("2d");
+		// draw loading screen
+		ctx.fillStyle = "black";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		fillText(ctx, "Loading assets...", canvas.width/2, canvas.height/2, "30pt 'Calibri'", "white");
+			
 		//== Biome Assets //{
 		// Clearing
-		BIOME.CLEARING.environmentImgs[0] = preloadImage("");
 		BIOME.CLEARING.environmentImgs[1] = preloadImage("assets/SceneryClearing1.png");
 		BIOME.CLEARING.environmentImgs[2] = preloadImage("assets/SceneryClearing2.png");
-		BIOME.CLEARING.environmentImgs[3] = preloadImage("");
 		BIOME.CLEARING.environmentImgs[4] = preloadImage("assets/SceneryClearing4.png");
 		BIOME.CLEARING.environmentImgs[5] = preloadImage("assets/SceneryClearing5.png");
 		// Forest
@@ -748,13 +764,13 @@ game.engine = (function(){
 		OBJECT.GLOWSHROOM.img = preloadImage("assets/GlowbitMushrooms.png");
 		
 		//== HUD assets
-		boltRune.src 	   = "assets/boltRune.png";
-		runeRune.src 	   = "assets/runeRune.png";
-		grenadeRune.src    = "assets/grenadeRune.png";
-		fireRune.src 	   = "assets/fireRune.png";
-		waterRune.src 	   = "assets/waterRune.png";
-		earthRune.src 	   = "assets/earthRune.png";
-		emptyRune.src 	   = "assets/emptyRune.png";
+		boltRune 	   = preloadImageNoCanvas("assets/boltRune.png");
+		runeRune 	   = preloadImageNoCanvas("assets/runeRune.png");
+		grenadeRune    = preloadImageNoCanvas("assets/grenadeRune.png");
+		fireRune 	   = preloadImageNoCanvas("assets/fireRune.png");
+		waterRune 	   = preloadImageNoCanvas("assets/waterRune.png");
+		earthRune 	   = preloadImageNoCanvas("assets/earthRune.png");
+		emptyRune 	   = preloadImageNoCanvas("assets/emptyRune.png");
 		
 		//== Enemies
 		ENEMY_TYPE.RAT.img 		= preloadImage("assets/ratRun.png");
@@ -774,7 +790,14 @@ game.engine = (function(){
 		PARTICLE_TYPE.WATERDRIP.img = PARTICLE_TYPE.WATERFOUNTAIN.img = PARTICLE_TYPE.WATEREXPLODE.img = preloadImage("assets/dripParticle.png");
 		PARTICLE_TYPE.EARTH.img = PARTICLE_TYPE.EARTHFOUNTAIN.img = PARTICLE_TYPE.EARTHEXPLODE.img = preloadImage("assets/earthParticle.png");
 		
-		init();
+		// Don't initialize until images are loaded
+		function initOnLoad() {
+			if (numImagesLoaded >= numImages)
+				init();
+			else
+				setTimeout(initOnLoad, 1);
+		};
+		initOnLoad();
 	}
 	
 	// play a sound effect
@@ -786,16 +809,18 @@ game.engine = (function(){
 	
 	// parallax an image across screen
 	function parallax(context, plxImg, scalar, alpha) {
-		context.save();
-			context.globalAlpha = alpha;
-			
-			// scale so parallax fits height-wise on screen
-			var imgScale = canvas.height/plxImg.height;
-			
-			for (var i = -((screenX*scalar) % (plxImg.width*imgScale)); i < canvas.width; i += (plxImg.width*imgScale)) {
-				context.drawImage(plxImg, i, 0, plxImg.width*imgScale, canvas.height);
-			}
-		context.restore();
+		if (plxImg != undefined) {
+			context.save();
+				context.globalAlpha = alpha;
+				
+				// scale so parallax fits height-wise on screen
+				var imgScale = canvas.height/plxImg.height;
+				
+				for (var i = -((screenX*scalar) % (plxImg.width*imgScale)); i < canvas.width; i += (plxImg.width*imgScale)) {
+					context.drawImage(plxImg, i, 0, plxImg.width*imgScale, canvas.height);
+				}
+			context.restore();
+		}
 	}
 	
 	// FUNCTION: checks if the object 'o' is on screen
@@ -942,7 +967,7 @@ game.engine = (function(){
 		}
 		
 		// add an enemy if there isn't one
-		if (enemies.length < 50 && Math.random() < 0.02 && biomeCurrent.enemies.length > 0) {
+		if (enemies.length < 50 && Math.random() < 0.015 && biomeCurrent.enemies.length > 0) {
 			enemies.push(new Enemy(biomeCurrent.enemies.randomElement()));
 		}
 		
@@ -2128,7 +2153,7 @@ game.engine = (function(){
 	// RESUME FUNCTION: resumes the game
 	function resumeGame() {
 		paused = false;
-		bgAudio.play();
+		//bgAudio.play();
 		
 		// forcibly end animation loop in case it's running
 		// only end the loop if the player is alive
