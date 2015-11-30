@@ -12,8 +12,9 @@ game.engine = (function(){
 	var windowManager = game.windowManager; // reference to the engine's window manager
 	var bgAudio;				// audio player reference for background audio
 	var sfxPlayer;				// audio player reference for sound effects
-	var canvas,ctx;				// canvas references
+	var canvas, ctx;			// canvas references
 	var offCanvas, offCtx;		// offscreen canvas references
+	var foreCanvas, foreCtx;	// foreground's canvas
 	var mouseX, mouseY;			// mouse coordinates
 	var animationID;			// stores animation ID of animation frame
 	var paused = false;			// if the game is paused
@@ -37,6 +38,7 @@ game.engine = (function(){
 	var waterRune 	  	= new Image();
 	var earthRune 	  	= new Image();
 	var emptyRune 	  	= new Image();
+	var playerImage		= new Image();
 	var numImages	  	= 0;
 	var numImagesLoaded = 0;
 	//}
@@ -111,25 +113,45 @@ game.engine = (function(){
 			display: "Dark Forest",
 			id: -1,
 			enemies: [ENEMY_TYPE.RAT, ENEMY_TYPE.BAT],
-			environmentImgs: []
+			environmentImgs: [],
+			WAYSTONE: {
+				img: new Image(),
+				overlayImg: new Image(),
+				color: {r: 210, g: 130, b: 210}
+			}
 		},
 		BOG: {
 			display: "Bog",
 			id: -1,
 			enemies: [ENEMY_TYPE.GATOR, ENEMY_TYPE.BAT],
-			environmentImgs: []
+			environmentImgs: [],
+			WAYSTONE: {
+				img: new Image(),
+				overlayImg: new Image(),
+				color: {r: 0, g: globalEarth().g + globalWater().g, b: globalEarth().b + globalWater().b}
+			}
 		},
 		CAVE: {
 			display: "Cave",
 			id: -1,
 			enemies: [ENEMY_TYPE.RAT, ENEMY_TYPE.BAT],
-			environmentImgs: []
+			environmentImgs: [],
+			WAYSTONE: {
+				img: new Image(),
+				overlayImg: new Image(),
+				color: {r: 150, g: 150, b: 150}
+			}
 		},
 		MOUNTAIN: {
 			display: "Desert",
 			id: -1,
 			enemies: [ENEMY_TYPE.GATOR, ENEMY_TYPE.RAT],
-			environmentImgs: []
+			environmentImgs: [],
+			WAYSTONE: {
+				img: new Image(),
+				overlayImg: new Image(),
+				color: globalFire()
+			}
 		}
 	};
 	var biome0 = {};
@@ -176,6 +198,8 @@ game.engine = (function(){
 			}
 		}
 	};
+	//== Waystones (teleporters)
+	var waystones = [];			// list of waystones
 	//== Particle Systems
 	var particleSystems = [];
 	var particles = [];
@@ -341,6 +365,7 @@ game.engine = (function(){
 	var RUNE_TYPE = {
 		FIRE: {
 			width: 130,
+			img: new Image(),
 			strength: 25,
 			cost: 25,
 			color: globalFire(),
@@ -350,6 +375,7 @@ game.engine = (function(){
 		},
 		WATER: {
 			width: 100,
+			img: new Image(),
 			strength: 30,
 			cost: 30,
 			color: globalWater(),
@@ -359,6 +385,7 @@ game.engine = (function(){
 		},
 		EARTH: {
 			width: 160,
+			img: new Image(),
 			strength: 20,
 			cost: 20,
 			color: globalEarth(),
@@ -554,7 +581,7 @@ game.engine = (function(){
 	function setupLevel() {
 		// increment level number and set up level variables
 		++currentLevel;
-		screenX = (LEVEL_WIDTH*TERRAIN_WIDTH)/2 - canvas.width/2; // center player on level
+		screenX = (LEVEL_WIDTH*TERRAIN_WIDTH)/2 - canvas.width/2 + playerImage.width/2; // center screen on level
 		
 		//== Reset entities ==//
 		enemies = [];
@@ -650,6 +677,24 @@ game.engine = (function(){
 			}
 		}
 		//}
+		// Create waystones //{
+		//== Biome0 waystones
+		waystones.push(new Waystone(biome0.WAYSTONE, Victor(levelWidth()*0.01 - biome0.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome0.WAYSTONE.img.height/2)));
+		waystones.push(new Waystone(biome0.WAYSTONE, Victor(levelWidth()*0.485 - biome0.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome0.WAYSTONE.img.height/2)));
+		//== Biome1 waystones
+		waystones.push(new Waystone(biome1.WAYSTONE, Victor(levelWidth()*0.26 - biome1.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome1.WAYSTONE.img.height/2)));
+		waystones.push(new Waystone(biome1.WAYSTONE, Victor(levelWidth()*0.495 - biome1.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome1.WAYSTONE.img.height/2)));
+		// Skip biome2 - it's always the clearing!
+		//== Biome3 waystones
+		waystones.push(new Waystone(biome3.WAYSTONE, Victor(levelWidth()*0.74 - biome3.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome3.WAYSTONE.img.height/2)));
+		waystones.push(new Waystone(biome3.WAYSTONE, Victor(levelWidth()*0.505 - biome3.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome3.WAYSTONE.img.height/2)));
+		//== Biome4 waystones
+		waystones.push(new Waystone(biome4.WAYSTONE, Victor(levelWidth()*0.99 - biome4.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome4.WAYSTONE.img.height/2)));
+		waystones.push(new Waystone(biome4.WAYSTONE, Victor(levelWidth()*0.515 - biome4.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome4.WAYSTONE.img.height/2)));
+		//== Make all waystones find their pair
+		for (var i = 0; i < waystones.length; ++i) waystones[i].getOther();
+		//}
+		
 		
 		//== Prepare UI ==//
 		windowManager.activateUI("controlsHUD");
@@ -711,7 +756,7 @@ game.engine = (function(){
 	
 	// Load game assets (images and sounds)
 	function loadAssets() {
-		//== Prepare canvases
+		//== Prepare canvases //{
 		// canvas
 		canvas = document.querySelector('canvas');
 		ctx = canvas.getContext("2d");
@@ -719,10 +764,18 @@ game.engine = (function(){
 		offCanvas = document.createElement("canvas");
 		offCanvas.width = canvas.width; offCanvas.height = canvas.height;
 		offCtx = offCanvas.getContext("2d");
+		// foreground canvas
+		foreCanvas = document.createElement("canvas");
+		foreCanvas.width = canvas.width; foreCanvas.height = canvas.height;
+		foreCtx = foreCanvas.getContext("2d");
 		// draw loading screen
 		ctx.fillStyle = "black";
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		fillText(ctx, "Loading assets...", canvas.width/2, canvas.height/2, "30pt 'Calibri'", "white");
+		//}
+			
+		//== Player
+		playerImage = preloadImage("assets/player.png");
 			
 		//== Biome Assets //{
 		// Clearing
@@ -763,7 +816,7 @@ game.engine = (function(){
 		//== Game Objects
 		OBJECT.GLOWSHROOM.img = preloadImage("assets/GlowbitMushrooms.png");
 		
-		//== HUD assets
+		//== HUD assets //{
 		boltRune 	   = preloadImageNoCanvas("assets/boltRune.png");
 		runeRune 	   = preloadImageNoCanvas("assets/runeRune.png");
 		grenadeRune    = preloadImageNoCanvas("assets/grenadeRune.png");
@@ -771,24 +824,46 @@ game.engine = (function(){
 		waterRune 	   = preloadImageNoCanvas("assets/waterRune.png");
 		earthRune 	   = preloadImageNoCanvas("assets/earthRune.png");
 		emptyRune 	   = preloadImageNoCanvas("assets/emptyRune.png");
+		//}
 		
-		//== Enemies
+		//== Enemies //{
 		ENEMY_TYPE.RAT.img 		= preloadImage("assets/ratRun.png");
 		ENEMY_TYPE.BAT.img 		= preloadImage("assets/batRun.png");
 		ENEMY_TYPE.GATOR.img 	= preloadImage("assets/gatorRun.png");
+		//}
 		
-		//== Projectiles
+		//== Projectiles //{
 		PROJECTILE_TYPE.FIREBOLT.img 		= preloadImage("assets/firebolt.png");
 		PROJECTILE_TYPE.FIREGRENADE.img 	= preloadImage("assets/firegrenade.png");
 		PROJECTILE_TYPE.WATERBOLT.img 		= preloadImage("assets/waterbolt.png");
 		PROJECTILE_TYPE.WATERGRENADE.img	= preloadImage("assets/watergrenade.png");
 		PROJECTILE_TYPE.EARTHBOLT.img 		= preloadImage("assets/earthbolt.png");
 		PROJECTILE_TYPE.EARTHGRENADE.img 	= preloadImage("assets/earthgrenade.png");
+		//}
 		
-		//== Particles
+		//== Particles //{
 		PARTICLE_TYPE.FLAME.img = PARTICLE_TYPE.FLAMEFOUNTAIN.img = PARTICLE_TYPE.BURN.img = PARTICLE_TYPE.FLAMEEXPLODE.img = preloadImage("assets/flameParticle.png");
 		PARTICLE_TYPE.WATERDRIP.img = PARTICLE_TYPE.WATERFOUNTAIN.img = PARTICLE_TYPE.WATEREXPLODE.img = preloadImage("assets/dripParticle.png");
 		PARTICLE_TYPE.EARTH.img = PARTICLE_TYPE.EARTHFOUNTAIN.img = PARTICLE_TYPE.EARTHEXPLODE.img = preloadImage("assets/earthParticle.png");
+		//}
+		
+		//== Waystones //{
+		BIOME.FOREST.WAYSTONE.img	= preloadImage("assets/waystoneForest.png");
+		BIOME.BOG.WAYSTONE.img		= preloadImage("assets/waystoneBog.png");
+		BIOME.MOUNTAIN.WAYSTONE.img	= preloadImage("assets/waystoneMountain.png");
+		BIOME.CAVE.WAYSTONE.img		= preloadImage("assets/waystoneCave.png");
+		// Waystone overlays
+		BIOME.FOREST.WAYSTONE.overlayImg	= preloadImage("assets/waystoneForestOverlay.png");
+		BIOME.BOG.WAYSTONE.overlayImg		= preloadImage("assets/waystoneBogOverlay.png");
+		BIOME.MOUNTAIN.WAYSTONE.overlayImg	= preloadImage("assets/waystoneMountainOverlay.png");
+		BIOME.CAVE.WAYSTONE.overlayImg		= preloadImage("assets/waystoneCaveOverlay.png");
+		//}
+		
+		//== Runes //{
+		RUNE_TYPE.FIRE.img = preloadImageNoCanvas("assets/runeFire.png");
+		RUNE_TYPE.WATER.img = preloadImageNoCanvas("assets/runeWater.png");
+		RUNE_TYPE.EARTH.img = preloadImageNoCanvas("assets/runeEarth.png");
+		//}
 		
 		// Don't initialize until images are loaded
 		function initOnLoad() {
@@ -887,8 +962,9 @@ game.engine = (function(){
 		
 		// == Main Draw ==//
 		//== Clear the canvases
-		offCtx.clearRect(0, 0, canvas.width, canvas.height);
+		offCtx.clearRect(0, 0, offCanvas.width, offCanvas.height);
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		foreCtx.clearRect(0, 0, foreCanvas.width, foreCanvas.height);
 		
 		//== Prepare Biomes
 		var biomeNum = biomeAt(player.position);			  // get the decimal ID of the biome based on player's X
@@ -925,6 +1001,16 @@ game.engine = (function(){
 		for (var i = 0; i < objects.length; ++i) {
 			if (onScreen(objects[i]))
 				objects[i].draw();
+		}
+		
+		// update runes
+		for (var i = 0; i < runes.length; ++i) {
+			runes[i].update();
+		}
+		
+		// update waystones
+		for (var i = 0; i < waystones.length; ++i) {
+			waystones[i].update();
 		}
 		
 		// only actually update if player is in control or they're off the ground
@@ -985,12 +1071,7 @@ game.engine = (function(){
 		for (var i = 0; i < projectiles.length; ++i) {
 			projectiles[i].update();
 		}
-						
-		// update runes
-		for (var i = 0; i < runes.length; ++i) {
-			runes[i].update();
-		}
-						
+												
 		// update particle systems
 		for (var i = 0; i < particleSystems.length; ++i)
 			particleSystems[i].update();
@@ -1004,12 +1085,13 @@ game.engine = (function(){
 			
 		// Foreround
 		// simulate the biome transition if we're moving between biomes
+		foreCtx.globalCompositeOperation = "source-over";
 		if (biomeCeil != biomeCurrent || biomeFloor != biomeCurrent) {
-			parallax(offCtx, biomeFloor.environmentImgs[0], 1.15, 1 - biomeAlpha);
-			parallax(offCtx, biomeCeil.environmentImgs[0], 1.15, biomeAlpha);
+			parallax(foreCtx, biomeFloor.environmentImgs[0], 1.15, 1 - biomeAlpha);
+			parallax(foreCtx, biomeCeil.environmentImgs[0], 1.15, biomeAlpha);
 		}
 		else {
-			parallax(offCtx, biomeCurrent.environmentImgs[0], 1.15, 1);
+			parallax(foreCtx, biomeCurrent.environmentImgs[0], 1.15, 1);
 		}
 		
 		//== Manipulate canvas ==//
@@ -1054,6 +1136,10 @@ game.engine = (function(){
 			}
 		ctx.restore();
 		
+		// Apply lighting to the offscreen foreground canvas
+		foreCtx.globalCompositeOperation = "source-atop";
+		foreCtx.drawImage(canvas, 0, 0);
+		
 		// Finally, draw the lit parts onto the main canvas
 		ctx.globalCompositeOperation = "destination-over";
 		ctx.drawImage(offCanvas, 0, 0);
@@ -1065,6 +1151,11 @@ game.engine = (function(){
 		ctx.globalCompositeOperation = "source-over";
 		for (var i = 0;	i < postProcesses.length; ++i)
 			postProcesses[i]();
+		
+		//== Draw foreground ==//
+		// We want this drawn last to avoid anomalies
+		// e.g. particles drawing above foreground
+		ctx.drawImage(foreCanvas, 0, 0);
 		
 		//== Draw static environment ==//
 		// These are drawn last, unmodified
@@ -1091,58 +1182,59 @@ game.engine = (function(){
 			
 			// Draw health and mana orb HUD elements
 			ctx.save();
+			var orbWidth = 125;
 			
 			// Red health gradient
-			var gradHealth = ctx.createLinearGradient(0, 0, 0, 150);
+			var gradHealth = ctx.createLinearGradient(0, 0, 0, orbWidth);
 				gradHealth.addColorStop(0, "rgb(100, 100, 100)");
 				gradHealth.addColorStop(1 - clamp(player.health/player.maxHealth, 0, 1), "rgb(100, 100, 100)");
 				gradHealth.addColorStop(1 - clamp(player.health/player.maxHealth, 0, 1), "rgb(135, 0, 60)");
 				gradHealth.addColorStop(1, "rgb(135, 0, 60)");
 			// Blue mana gradient
-			var gradMana = ctx.createLinearGradient(0, 0, 0, 150);
+			var gradMana = ctx.createLinearGradient(0, 0, 0, orbWidth);
 				gradMana.addColorStop(0, "rgb(100, 100, 100)");
 				gradMana.addColorStop(1 - clamp(player.mana/player.maxMana, 0, 1), "rgb(100, 100, 100)");
 				gradMana.addColorStop(1 - clamp(player.mana/player.maxMana, 0, 1), "rgb(60, 55, 160)");
 				gradMana.addColorStop(1, "rgb(60, 55, 160)");
 			// Dark orb shadow gradient
-			var radial = ctx.createRadialGradient(75, 75, 75, 75, 75, 0);
+			var radial = ctx.createRadialGradient(orbWidth/2, orbWidth/2, orbWidth/2, orbWidth/2, orbWidth/2, 0);
 				radial.addColorStop(0, "rgba(0, 0, 0, 0.65)");
 				radial.addColorStop(0.25, "rgba(0, 0, 0, 0.3)");
 				radial.addColorStop(0.5, "rgba(0, 0, 0, 0)");
 				radial.addColorStop(1, "rgba(0, 0, 0, 0)");
 			// White orb highlight gradient
-			var radialWhite = ctx.createRadialGradient(35, 40, 10, 35, 40, 0);
+			var radialWhite = ctx.createRadialGradient(orbWidth*.23, orbWidth*.27, orbWidth*.066, orbWidth*.23, orbWidth*.27, 0);
 				radialWhite.addColorStop(0, "rgba(255, 255, 255, 0)");
 				radialWhite.addColorStop(0.5, "rgba(255, 255, 255, 0.15)");
 				radialWhite.addColorStop(1, "rgba(255, 255, 255, 0.65)");
 			// Health Orb
-			ctx.translate(0, canvas.height-150);
+			ctx.translate(0, canvas.height-orbWidth);
 				ctx.fillStyle = gradHealth;
 				ctx.beginPath();
-				ctx.arc(75, 75, 75, 0, Math.PI*2, false);
+				ctx.arc(orbWidth/2, orbWidth/2, orbWidth/2, 0, Math.PI*2, false);
 				ctx.fill();
 				ctx.fillStyle = radial;
 				ctx.beginPath();
-				ctx.arc(75, 75, 75, 0, Math.PI*2, false);
+				ctx.arc(orbWidth/2, orbWidth/2, orbWidth/2, 0, Math.PI*2, false);
 				ctx.fill();
 				ctx.fillStyle = radialWhite;
 				ctx.beginPath();
-				ctx.arc(35, 40, 10, 0, Math.PI*2, false);
+				ctx.arc(orbWidth*.23, orbWidth*.27, orbWidth*.066, 0, Math.PI*2, false);
 				ctx.fill();
 				ctx.closePath();
 			// Mana Orb
-			ctx.translate(canvas.width - 150, 0);
+			ctx.translate(canvas.width - orbWidth, 0);
 				ctx.fillStyle = gradMana;
 				ctx.beginPath();
-				ctx.arc(75, 75, 75, 0, Math.PI*2, false);
+				ctx.arc(orbWidth/2, orbWidth/2, orbWidth/2, 0, Math.PI*2, false);
 				ctx.fill();
 				ctx.fillStyle = radial;
 				ctx.beginPath();
-				ctx.arc(75, 75, 75, 0, Math.PI*2, false);
+				ctx.arc(orbWidth/2, orbWidth/2, orbWidth/2, 0, Math.PI*2, false);
 				ctx.fill();
 				ctx.fillStyle = radialWhite;
 				ctx.beginPath();
-				ctx.arc(35, 40, 10, 0, Math.PI*2, false);
+				ctx.arc(orbWidth*.23, orbWidth*.27, orbWidth*.066, 0, Math.PI*2, false);
 				ctx.fill();
 				ctx.closePath();
 				
@@ -1314,12 +1406,101 @@ game.engine = (function(){
 		}
 	}
 	
+	// CLASS: one of the waystones used as a checkpoint to warp between worlds
+	function Waystone(waystoneType, position) {
+		// Inherit from base object
+		GameObject.call(this);
+		
+		// Get info from the waystone's type
+		this.waystoneType = waystoneType;
+		this.position = position;	// waystone's world position
+		this.img = waystoneType.img;// waystone's image
+		this.source = {}; 			// waystone's light source
+		this.bounds = new Victor();	// bounding box
+		this.active = false;		// whether or not this waystone is active (can be used for teleporting)
+		this.bounds = new Victor(this.img.width, this.img.height);
+		this.source = new LightSource(this, waystoneType.color, 0, -1, false, true, 1);
+		this.pair	= {};			// this waystone's matching waystone
+		this.opacityScalar = 0;		// used for waystone activation glow, etc.
+		lightSources.push(this.source);
+		this.central = Math.abs((this.position.x/levelWidth()) - 0.5) < 0.1; // variable storing whether this is one of the central level keystones
+		
+		// FUNCTION: gets this waystone's matching waystone
+		this.getOther = function() {
+			// Loop waystones
+			for (var i = 0; i < waystones.length; ++i) {
+				// check if it's a matching waystoneType that isn't this one
+				if (waystones[i] != this && waystones[i].waystoneType === waystoneType) {
+					this.pair = waystones[i];
+					return;
+				}
+			}
+		}
+		
+		// Main update function
+		this.update = function() {
+			// Waystone only ever does anything if the player is touching it - check that first
+			if (this.overlaps(player)) {
+				// Activate the waystone (and its pair) if it's touching the player for the first time
+				if (!this.active) {
+					// Only activate on touch if it's an outer waystone
+					// We check this separately so the else below triggers
+					if (!this.central) {
+						this.active = true;
+						this.pair.active = true;
+						// force the pair's opacity scalar up so it'll glow once we teleport to it
+						this.pair.opacityScalar = 0.35;
+					}
+				}
+				// Animate light to full lit once it activates
+				else if (this.opacityScalar < 1) {
+					// make sure it's fully lit
+					this.opacityScalar = clamp(this.opacityScalar*1.025, 0, 1);
+					this.source.radius = Math.pow(this.bounds.x, 1.1) * this.opacityScalar;
+					this.source.alpha = this.opacityScalar;
+				}
+			
+				// Check if the player is jumping, and if this and its pair are active
+				// If they are, we'll teleport the player to the pairing waystone
+				if (this.active && this.pair.active && (keys[KEY.SPACE] || keys[KEY.W])) {
+					// Launch the player
+					player.velocity = Victor(0, -100);
+					
+					// Wait a second, then teleport the player to the matching waystone
+					setTimeout(function() {
+						player.velocity = Victor(0, 100);
+						player.position = Victor(this.pair.position.x + this.pair.bounds.x/2 - player.bounds.x/2, -500);
+					}.bind(this), 1000);
+				}
+			}
+			
+			// Change waystone's light's alpha based on player distance if it's not yet active
+			if (!this.active && !this.central) {
+				this.opacityScalar = 1 - clamp(Math.abs(this.position.x + this.bounds.x/2 - player.position.x)/(canvas.width/2), 0, 0.65);
+				this.source.radius = Math.pow(this.bounds.x, 1.1) * this.opacityScalar;
+				this.source.alpha = this.opacityScalar;
+			}
+			
+			// Draw the waystone
+			this.draw();
+		}
+		
+		// Main draw function
+		this.draw = function() {
+			offCtx.save();
+				offCtx.drawImage(this.img, -screenX + this.position.x, this.position.y);
+				offCtx.globalAlpha = this.opacityScalar;
+				offCtx.drawImage(this.waystoneType.overlayImg, -screenX + this.position.x - 5, this.position.y - 10);
+			offCtx.restore();
+		}
+	}
+	
 	// CLASS: player object
 	function Player() {
 		MobileObject.call(this);
 	
 		/* VARIABLES */
-		this.image = new Image(); this.image.src = "assets/player.png";
+		this.image = playerImage;
 		this.maxHealth = this.health = 100; 	// the player's health and max health
 		this.maxMana = this.mana = 100;			// the player's mana and max mana
 		this.velocity = new Victor(0, 0);		// player's velocity
@@ -1331,20 +1512,16 @@ game.engine = (function(){
 		this.spellName = "";					// string naming the current spell
 		this.cooldown = 0;						// cooldown, determines whether a spell can be cast
 		this.damageTicks = 0;					// cooldown on damage
+		this.frameWidth = this.image.width; 	// width of 1 frame from the spritesheet
+		this.frameHeight = this.image.height;  	// height of 1 frame from the spritesheet
 		this.position = new Victor(				// starting player position, centered on level
 			levelWidth()/2,
 			TERRAIN_HEIGHT - this.bounds.y
 		);
-		
-		// set up image-dependent variables once the image loads
-		this.image.onload = function() {
-			this.frameWidth = this.image.width/28; 	// width of 1 frame from the spritesheet
-			this.frameHeight = this.image.height;  	// height of 1 frame from the spritesheet
-			this.bounds = new Victor(			// the player's bounding width and height
-				this.image.width,
-				this.image.height
-			);
-		}.bind(this);
+		this.bounds = new Victor(			// the player's bounding width and height
+			this.image.width,
+			this.image.height
+		);
 		
 		// FUNCTION: prints player information to console
 		this.toString = function() {
@@ -1837,7 +2014,8 @@ game.engine = (function(){
 				grad.addColorStop(0, colorString(this.runeType.color, 0));
 				grad.addColorStop(1, colorString(this.runeType.color, 0.5));
 				ctx.fillStyle = grad;
-				ctx.fillRect(-screenX + this.position.x, this.position.y - this.runeType.width/2, this.runeType.width, this.runeType.width);
+				//ctx.fillRect(-screenX + this.position.x, this.position.y - this.runeType.width/2, this.runeType.width, this.runeType.width);
+				ctx.drawImage(this.runeType.img, -screenX + this.position.x, this.position.y - this.runeType.width/4);
 			ctx.restore();
 		}
 	}
@@ -2067,13 +2245,19 @@ game.engine = (function(){
 		this.position = this.root.position;		// light's position
 		this.bounds = new Victor(radius*2, radius*2); // basic bounds
 		this.radius = radius;					// outer radius of the light
-		// the color of the source's light, passed as rgb object literal for use in draw call
-		this.color = colorString(color, alpha);
+		this.baseColor = color;					// base color of the light
+		this.alpha = alpha;						// light's alpha (transparency)
+		this.color = colorString(this.baseColor, this.alpha); // the true current color of the source's light, passed as rgb object literal for use in draw call
 		
 		// Update light source system
 		this.update = function() {
+			// Update color in case a color variable updated
+			this.color = colorString(this.baseColor, this.alpha);
+			// Update bounds in case radius changes
+			this.bounds = new Victor(this.radius*2, this.radius*2);
+		
 			// delete this if its root is gone or it's too small to draw
-			if (this.root == undefined || this.radius < 1) {
+			if (this.root == undefined || (this.radius < 1 && !(this.root instanceof Waystone))) {
 				lightSources.safeSplice(lightSources.indexOf(this), 1);
 				return;
 			}
@@ -2085,7 +2269,7 @@ game.engine = (function(){
 			}
 			else {
 				// stick to root object
-				this.position = this.root.position.clone().add(this.root.bounds.clone().divide(Victor(2, 2)));
+				this.position = this.root.position.clone().add(this.root.bounds.clone().divide(Victor(2, 2))).add(this.root.offset.clone());
 				
 				// flicker radius if flicker is enabled
 				if (flicker)
