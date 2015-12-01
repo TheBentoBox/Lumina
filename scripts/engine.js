@@ -19,6 +19,7 @@ game.engine = (function(){
 	var animationID;			// stores animation ID of animation frame
 	var mouseDown = false;		// if the mouse is being held down
 	var uiClicked = false;		// if UI was clicked
+	var enemyHover = false;		// if an enemy is being hovered over
 	var mouse = {}				// a mouse object, with screen coordinates
 	var worldMouse = {}			// a mouse object, with screen coords transformed to the world's system
 	var lastTime = (+new Date); // used with calculateDeltaTime
@@ -291,27 +292,30 @@ game.engine = (function(){
 	var enemyLoop = -1;			// the ID of the looping enemy spawn function
 	var ENEMY_TYPE = {			// "enum" of the enemy types
 		GATOR: {
-			name: "GATOR",
+			name: "Sand Gator",
 			health: 75,
 			img: new Image(),
+			profile: new Image(),
 			width: 100,
 			height: 60,
 			strength: 10,
 			AI: "running"
 		},
 		RAT: {
-			name: "Rat",
+			name: "Wood Rat",
 			health: 55,
 			img: new Image(),
+			profile: new Image(),
 			width: 100,
 			height: 50,
 			strength: 5,
 			AI: "standing"
 		},
 		BAT: {
-			name: "Bat",
+			name: "Quill Bat",
 			health: 50,
 			img: new Image(),
+			profile: new Image(),
 			width: 85,
 			height: 50,
 			strength: 3,
@@ -500,7 +504,7 @@ game.engine = (function(){
 		// callback for button presses
 		window.addEventListener("keyup", keyRelease);
 		
-		//== Register Title Screen UI ==//
+		//== Register Title Screen UI ==//{
 		windowManager.makeUI("titleScreen", 0, 0, canvas.width, canvas.height);
 		var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
 		grad.addColorStop(0, "rgb(0, 0, 50)");
@@ -519,8 +523,9 @@ game.engine = (function(){
 		// game title
 		windowManager.makeText("titleScreen", "title", 50, 50, "default", "default", "Lumina", "40pt 'Bad Script'", "rgb(250, 255, 195)");
 		windowManager.toggleUI("titleScreen");
+		//}
 		
-		//== Register Instructions Screen ==//
+		//== Register Instructions Screen ==//{
 		windowManager.makeUI("instructionScreen", 0, 0, canvas.width, canvas.height);
 		var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
 		grad.addColorStop(0, "rgb(0, 0, 50)");
@@ -545,8 +550,9 @@ game.engine = (function(){
 		windowManager.modifyButton("instructionScreen", "backButton", "fill", {color: "#3C3C3C"});
 		windowManager.modifyButton("instructionScreen", "backButton", "border", {color: "#222", width: 4});
 		windowManager.modifyButton("instructionScreen", "backButton", "text", {string: "Back", css: "24pt 'Bad Script'", color: "rgb(250, 255, 195)"});
+		//}
 		
-		//== Register In-Game Spell Type HUD ==//
+		//== Register In-Game Spell Type HUD ==//{
 		windowManager.makeUI("controlsHUD", 10, 5, canvas.width/4, 90);
 		windowManager.makeText("controlsHUD", "spellType1", 0, 0, 250, "default", "Press to choose type: ", "14pt 'Bad Script'", "white");
 		windowManager.makeText("controlsHUD", "spellType2", 0, 20, 150, "default", "1 - Bolt", "14pt 'Bad Script'", "white");
@@ -559,14 +565,27 @@ game.engine = (function(){
 		windowManager.makeText("controlsHUD2", "spellElement4", 0, 60, 150, "default", "3 - Earth", "14pt 'Bad Script'", "white");
 		windowManager.makeUI("controlsHUD3", 10, 5, canvas.width/4, 90);
 		windowManager.makeText("controlsHUD3", "cast1", 0, 0, 250, "default", "Click to cast", "14pt 'Bad Script'", "white");
+		//}
 		
-		//== Register Spell Cast HUD ==//
+		//== Register Spell Cast HUD ==//{
 		windowManager.makeUI("spellHUD", canvas.width* 5/6, 0, canvas.width / 6, canvas.height / 6);
 		windowManager.modifyUI("spellHUD", "fill", {color: "#3C3C3C"});
 		windowManager.modifyUI("spellHUD", "border", {color: "#222", width: 4});
 		windowManager.makeImage("spellHUD", "typeRune", 30, 15, 64, 64, emptyRune);
 		windowManager.makeImage("spellHUD", "elementRune", 120, 15, 64, 64, emptyRune);
 		windowManager.makeText("spellHUD", "spellCast", 30, 80, canvas.width / 6 - 20, canvas.height / 12 - 10, "", "12pt 'Bad Script'", "white");
+		//}
+		
+		//== Register Enemy Info HUD ==//{
+		windowManager.makeUI("enemyHUD", canvas.width/3, 0, canvas.width/3, 80);
+		windowManager.modifyUI("enemyHUD", "fill", {color: "#3C3C3C"});
+		windowManager.modifyUI("enemyHUD", "border", {color: "#222", width: 4});
+		windowManager.makeImage("enemyHUD", "enemyImage", 10, 10, 80, 60, new Image());
+		windowManager.modifyImage("enemyHUD", "enemyImage", "fill", {color: "#444"});
+		windowManager.modifyImage("enemyHUD", "enemyImage", "border", {color: "#222", width: 4});
+		windowManager.makeText("enemyHUD", "enemyName", 130, 10, canvas.width / 3 - 130, 40, "", "12pt 'Bad Script'", "white");
+		windowManager.makeBar("enemyHUD", "enemyHealth", 130, 40, canvas.width / 3 - 150, 30, 1, 1, 0);
+		//}
 		
 		// BEGIN main game tick
 		update();
@@ -859,8 +878,11 @@ game.engine = (function(){
 		
 		//== Enemies //{
 		ENEMY_TYPE.RAT.img 		= preloadImage("assets/ratRun.png");
+		ENEMY_TYPE.RAT.profile 	= preloadImageNoCanvas("assets/ratProfile.png");
 		ENEMY_TYPE.BAT.img 		= preloadImage("assets/batRun.png");
+		ENEMY_TYPE.BAT.profile 	= preloadImageNoCanvas("assets/batProfile.png");
 		ENEMY_TYPE.GATOR.img 	= preloadImage("assets/gatorRun.png");
+		ENEMY_TYPE.GATOR.profile 	= preloadImageNoCanvas("assets/gatorProfile.png");
 		//}
 		
 		//== Projectiles //{
@@ -1088,14 +1110,34 @@ game.engine = (function(){
 			}
 		}
 		
+		// if hovered over any enemy this frame
+		var frameHover = false;
 		// update enemies
 		for (var i = 0; i < enemies.length; ++i) {
+			// enemy temp reference
+			var e = enemies[i];
 			// only actually update enemies if player is in control
 			if (inControl())
-				enemies[i].update();
+				e.update();
 			// otherwise, just do the draw
 			else
-				enemies[i].draw();
+				e.draw();
+			// check if mouse is hovering on enemy
+			if (worldMouse.position.x >= (e.position.x - 10) && worldMouse.position.x <= (e.position.x + e.bounds.x + 10) && worldMouse.position.y >= (e.position.y - 10) && worldMouse.position.y <= (e.position.y + e.bounds.y + 10)) {
+				// activate and update HUD if hovered onto enemy
+				enemyHover = true;
+				frameHover = true;
+				windowManager.modifyImage("enemyHUD", "enemyImage", "image", {image: e.enemyType.profile});
+				windowManager.modifyText("enemyHUD", "enemyName", "text", {string: e.enemyType.name, css: "12pt 'Bad Script'", color: "white"});
+				windowManager.modifyBar("enemyHUD", "enemyHealth", "text", {string: (Math.max(Math.round(e.health), 0) + "/" + e.maxHealth), css: "12pt 'Bad Script'", color: "white"});
+				windowManager.modifyBar("enemyHUD", "enemyHealth", "target", {tgtVar: e.health, tgtMax: e.maxHealth, tgtMin: 0});
+				windowManager.activateUI("enemyHUD");
+			}
+		}
+		// deactivate if mouse hovers off enemy
+		if (frameHover == false && enemyHover == true) {
+			enemyHover = false;
+			windowManager.deactivateUI("enemyHUD");
 		}
 		
 		// update projectiles
@@ -1114,7 +1156,7 @@ game.engine = (function(){
 		for (var i = 0; i < lightSources.length; ++i)
 			lightSources[i].update();
 			
-		// Foreround
+		// Foreground
 		// simulate the biome transition if we're moving between biomes
 		foreCtx.globalCompositeOperation = "source-over";
 		if (biomeCeil != biomeCurrent || biomeFloor != biomeCurrent) {
