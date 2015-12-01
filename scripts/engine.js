@@ -2418,7 +2418,7 @@ game.engine = (function(){
 	function pauseGame() {
 		// since pause can be called multiple ways
 		// prevents multiple redraws of pause screen
-		if (currentGameState != GAME_STATE.PAUSED && inControl()) {
+		if (currentGameState === GAME_STATE.IDLE) {
 			currentGameState = GAME_STATE.PAUSED;
 			bgAudio.pause();
 			
@@ -2438,15 +2438,19 @@ game.engine = (function(){
 	
 	// RESUME FUNCTION: resumes the game
 	function resumeGame() {
-		currentGameState = GAME_STATE.IDLE;
-		//bgAudio.play();
-		
-		// forcibly end animation loop in case it's running
-		// only end the loop if the player is alive
-		if (inControl()) {
-			cancelAnimationFrame(animationID);
-			// resume ticking
-			update();
+		// Only unpaused if we're actually paused
+		// Prevents accidental ticking resumes
+		if (currentGameState === GAME_STATE.PAUSED) {
+			currentGameState = GAME_STATE.IDLE;
+			//bgAudio.play();
+			
+			// forcibly end animation loop in case it's running
+			// only end the loop if the player is alive
+			if (inControl()) {
+				cancelAnimationFrame(animationID);
+				// resume ticking
+				update();
+			}
 		}
 	}
 	
@@ -2474,7 +2478,7 @@ game.engine = (function(){
 			// check if paused, and toggle it
 			if (currentGameState === GAME_STATE.PAUSED)
 				resumeGame();
-			else
+			else if (currentGameState === GAME_STATE.IDLE)
 				pauseGame();
 		}
 		
