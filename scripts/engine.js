@@ -66,7 +66,7 @@ game.engine = (function(){
 	//== Level
 	var TERRAIN_WIDTH = 10;		// width of a terrain tile
 	var TERRAIN_HEIGHT = 0; 	// height of terrain from the bottom of the screen
-	var LEVEL_WIDTH = 3000;		// width of a level in tiles, pixel width is this*TERRAIN_WIDTH
+	var LEVEL_WIDTH = 6000;		// width of a level in tiles, pixel width is this*TERRAIN_WIDTH
 	var level = [];				// array storing the map of the current level
 	var screenX = (LEVEL_WIDTH*TERRAIN_WIDTH)/2 - 640;	// current horizontal position of camera in level
 	function levelWidth() { return LEVEL_WIDTH*TERRAIN_WIDTH; }
@@ -625,6 +625,7 @@ game.engine = (function(){
 		particleSystems = [];
 		projectiles = [];
 		lightSources = [];
+		waystones = [];
 		
 		//== Prepare the level ==//
 		// Assign biome IDs //{
@@ -719,11 +720,11 @@ game.engine = (function(){
 		waystones.push(new Waystone(biome0.WAYSTONE, Victor(levelWidth()*0.485 - biome0.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome0.WAYSTONE.img.height/2)));
 		//== Biome1 waystones
 		waystones.push(new Waystone(biome1.WAYSTONE, Victor(levelWidth()*0.26 - biome1.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome1.WAYSTONE.img.height/2)));
-		waystones.push(new Waystone(biome1.WAYSTONE, Victor(levelWidth()*0.495 - biome1.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome1.WAYSTONE.img.height/2)));
+		waystones.push(new Waystone(biome1.WAYSTONE, Victor(levelWidth()*0.49 - biome1.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome1.WAYSTONE.img.height/2)));
 		// Skip biome2 - it's always the clearing!
 		//== Biome3 waystones
 		waystones.push(new Waystone(biome3.WAYSTONE, Victor(levelWidth()*0.74 - biome3.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome3.WAYSTONE.img.height/2)));
-		waystones.push(new Waystone(biome3.WAYSTONE, Victor(levelWidth()*0.505 - biome3.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome3.WAYSTONE.img.height/2)));
+		waystones.push(new Waystone(biome3.WAYSTONE, Victor(levelWidth()*0.51 - biome3.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome3.WAYSTONE.img.height/2)));
 		//== Biome4 waystones
 		waystones.push(new Waystone(biome4.WAYSTONE, Victor(levelWidth()*0.99 - biome4.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome4.WAYSTONE.img.height/2)));
 		waystones.push(new Waystone(biome4.WAYSTONE, Victor(levelWidth()*0.515 - biome4.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome4.WAYSTONE.img.height/2)));
@@ -745,7 +746,7 @@ game.engine = (function(){
 			if (numOnScreen < 15 && biomeCurrent.enemies.length > 0 && inControl()) {
 				enemies.push(new Enemy(biomeCurrent.enemies.randomElement()));
 			}
-		}, 1000);
+		}, 1700);
 		
 		//== Prepare UI ==//
 		windowManager.activateUI("controlsHUD");
@@ -1504,9 +1505,9 @@ game.engine = (function(){
 			// Loop waystones
 			for (var i = 0; i < waystones.length; ++i) {
 				// check if it's a matching waystoneType that isn't this one
-				if (waystones[i] != this && waystones[i].waystoneType === waystoneType) {
+				if (waystones[i] != this && waystones[i].waystoneType === this.waystoneType) {
 					this.pair = waystones[i];
-					return;
+					break;
 				}
 			}
 		}
@@ -2200,44 +2201,47 @@ game.engine = (function(){
 				return;
 			}
 			
-			// always move towards the player's other side
-			this.targetPos = player.position.clone();
-			this.targetPos.x += player.bounds.x * this.xScale;
-			
-			// bobbing for flying enemies, and target above the player
-			if (this.enemyType.AI === "flying") {
-				this.position.y += Math.sin(time/10);
-				this.targetPos.y -= this.bounds.y*4;
-				
-				// randomly shoot projectiles
-				if (Math.random() < 0.001 && currentGameState != GAME_STATE.PAUSED && onScreen(this))
-					projectiles.push(new Projectile(this.position.x, this.position.y, player, this.enemyType.projectile, true));
-			}
-				
 			// lose health from active DOTs
 			if (this.fireTicks > 0) {
 				--this.fireTicks;
 				this.health -= 0.05;
 			}
 			
-			// contact with player
-			if (this.overlaps(player) && player.damageTicks <= 0) {
-				player.damage(this.enemyType.strength);
-				player.jump(this.enemyType.strength, 1);
-			}
-			
-			// if it's a flying enemy, it uses true homing
-			if (this.enemyType.AI === "flying")
-				this.velocity = this.targetPos.clone().subtract(this.position).norm().multiply(Victor(2, 2.5));
-			// otherwise, only set x velocity
-			else
-				// doesn't move if off ground
-				if (this.onGround)
-					this.velocity.x = Math.sign(this.targetPos.clone().subtract(this.position).x);
+			// Enemies stop most of their checks and update if they're far enough off screen
+			if (Math.abs(player.position.x - this.position.x) < canvas.width*1.5) {
+				// always move towards the player's other side
+				this.targetPos = player.position.clone();
+				this.targetPos.x += player.bounds.x * this.xScale;
+				
+				// bobbing for flying enemies, and target above the player
+				if (this.enemyType.AI === "flying") {
+					this.position.y += Math.sin(time/10);
+					this.targetPos.y -= this.bounds.y*4;
+					
+					// randomly shoot projectiles
+					if (Math.random() < 0.001 && currentGameState != GAME_STATE.PAUSED && onScreen(this))
+						projectiles.push(new Projectile(this.position.x, this.position.y, player, this.enemyType.projectile, true));
+				}
+				
+				// contact with player
+				if (this.overlaps(player) && player.damageTicks <= 0) {
+					player.damage(this.enemyType.strength);
+					player.jump(this.enemyType.strength, 1);
+				}
+				
+				// if it's a flying enemy, it uses true homing
+				if (this.enemyType.AI === "flying")
+					this.velocity = this.targetPos.clone().subtract(this.position).norm().multiply(Victor(2, 2.5));
+				// otherwise, only set x velocity
 				else
-					this.velocity.x = 0;
-			
-			this.updatePhysics();
+					// doesn't move if off ground
+					if (this.onGround)
+						this.velocity.x = Math.sign(this.targetPos.clone().subtract(this.position).x);
+					else
+						this.velocity.x = 0;
+				
+				this.updatePhysics();
+			}
 			
 			// DRAW: draw the enemy if it's on screen
 			if (onScreen(this))
@@ -2570,6 +2574,8 @@ game.engine = (function(){
 			// if the player has died, restart the game
 			if (currentGameState === GAME_STATE.DEAD) {
 				currentGameState = GAME_STATE.START;
+				windowManager.deactivateUI("all");
+				windowManager.toggleUI("titleScreen");
 			}
 			// if we're in between levels, move on to the next one
 			if (currentGameState === GAME_STATE.BETWEEN) {
