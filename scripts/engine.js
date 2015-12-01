@@ -581,10 +581,11 @@ game.engine = (function(){
 		windowManager.modifyUI("enemyHUD", "fill", {color: "#3C3C3C"});
 		windowManager.modifyUI("enemyHUD", "border", {color: "#222", width: 4});
 		windowManager.makeImage("enemyHUD", "enemyImage", 10, 10, 80, 60, new Image());
-		windowManager.modifyImage("enemyHUD", "enemyImage", "fill", {color: "#444"});
+		windowManager.modifyImage("enemyHUD", "enemyImage", "fill", {color: "#000"});
 		windowManager.modifyImage("enemyHUD", "enemyImage", "border", {color: "#222", width: 4});
 		windowManager.makeText("enemyHUD", "enemyName", 130, 10, canvas.width / 3 - 130, 40, "", "12pt 'Bad Script'", "white");
 		windowManager.makeBar("enemyHUD", "enemyHealth", 130, 40, canvas.width / 3 - 150, 30, 1, 1, 0);
+		windowManager.modifyBar("enemyHUD", "enemyHealth", "fill", {foreColor: "#080", backColor: "#880000"});
 		//}
 		
 		// BEGIN main game tick
