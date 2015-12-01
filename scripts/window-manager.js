@@ -520,10 +520,13 @@ game.windowManager = (function(){
 		
 		this.onClick = clickEvent;		// event to fire on click
 		this.onHover = undefined;		// event to fire on hover
+		this.imageLoaded = false;
+		
+		this.image.onload = function() { this.imageLoaded = true; }
 		
 		// FUNCTION: update and draw button if active
 		this.updateAndDraw = function() {
-			if (this.isActive) {
+			if (this.isActive && (this.imageLoaded || this.image.src === "")) {
 				// fill color
 				if(this.fillColor != ""){
 					ctx.fillStyle = this.fillColor;
@@ -538,7 +541,9 @@ game.windowManager = (function(){
 				}
 				
 				// draw image
-				if(this.image.src != null){
+				if(this.image != undefined && this.image != null && this.image.src != undefined && this.image.src != null && this.image.src != ""){
+					if (!this.logged) { this.logged= true;
+					console.log(this.image);}
 					ctx.drawImage(this.image, this.position.x, this.position.y);
 				}
 				
@@ -852,9 +857,13 @@ game.windowManager = (function(){
 		// data to track in formatted string
 		this.trackers = [];
 		
+		// make sure it doesn't draw an unloaded image
+		this.imageLoaded = false;
+		this.image.onload = function() { this.imageLoaded = true; }
+		
 		// FUNCTION: update and draw if active
 		this.updateAndDraw = function() {
-			if (this.isActive){		
+			if (this.isActive && (this.imageLoaded || this.image.src === "")){
 				// fill background color
 				if(this.color != "") {
 					ctx.fillStyle = this.color;
@@ -869,7 +878,7 @@ game.windowManager = (function(){
 				}
 				
 				// draw background image
-				if(this.image != null){
+				if(this.image != undefined && this.image != null && this.image.src != undefined && this.image.src != null && this.image.src != ""){
 					ctx.drawImage(this.image, this.position.x, this.position.y);
 				}
 				// update formatted text
@@ -1040,7 +1049,7 @@ game.windowManager = (function(){
 			width: 0,
 		};
 		
-		this.fillColor = "gray";		// background fill color
+		this.fillColor = "rgba(0, 0, 0, 0)"; // background fill color
 		this.image = image;				// image
 		this.isActive = true; 			// if the element is active and displayed
 		
