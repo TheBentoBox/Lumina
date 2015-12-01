@@ -645,7 +645,7 @@ game.windowManager = (function(){
 		this.parPosition = new Victor(uiElements.find(this.parentName).position.x, uiElements.find(this.parentName).position.y);
 		
 		// global position of subelement
-		this.position = new Victor(parPosition.x + offset.x, parPosition.y + offset.y);
+		this.position = new Victor(this.parPosition.x + this.offset.x, this.parPosition.y + this.offset.y);
 		
 		// bar bounds
 		this.bounds = new Victor(width, height);
