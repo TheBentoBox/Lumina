@@ -17,7 +17,6 @@ game.engine = (function(){
 	var foreCanvas, foreCtx;	// foreground's canvas
 	var mouseX, mouseY;			// mouse coordinates
 	var animationID;			// stores animation ID of animation frame
-	var paused = false;			// if the game is paused
 	var mouseDown = false;		// if the mouse is being held down
 	var uiClicked = false;		// if UI was clicked
 	var mouse = {}				// a mouse object, with screen coordinates
@@ -28,9 +27,6 @@ game.engine = (function(){
 	//}
 	
 	//== ASSETS ==//{
-	var background 	  	= new Image();
-	var cloud 		  	= new Image();
-	var star 		  	= new Image();
 	var boltRune 	  	= new Image();
 	var runeRune 	  	= new Image();
 	var grenadeRune   	= new Image();
@@ -48,7 +44,7 @@ game.engine = (function(){
 	var GAME_STATE = {			// "enum" of the current status of the game
 		START: 0,				// start screen
 		IDLE: 1,				// level is sitting idly
-		CASTING: 2,				// player is in the process of building a spell
+		PAUSED: 2,				// the game is paused
 		BETWEEN: 3,				// between level upgrade
 		DEAD: 4,				// game over screen
 		HIGHSCORE: 5			// viewing the high score table
@@ -61,6 +57,9 @@ game.engine = (function(){
 	var highScores = [];		// array of high scores when they're loaded in
 	var postProcesses = [];		// an array that stores callbacks to object draws that should be called after shading is applied
 	
+	//== Progression
+	var progression = 0;
+	
 	//== Player
 	var player = {};			// the player object
 	//== Level
@@ -70,134 +69,12 @@ game.engine = (function(){
 	var level = [];				// array storing the map of the current level
 	var screenX = (LEVEL_WIDTH*TERRAIN_WIDTH)/2 - 640;	// current horizontal position of camera in level
 	function levelWidth() { return LEVEL_WIDTH*TERRAIN_WIDTH; }
-	//== Enemies
-	var enemies = [];
-	var ENEMY_TYPE = {
-		GATOR: {
-			name: "GATOR",
-			health: 75,
-			img: new Image(),
-			width: 100,
-			height: 60,
-			strength: 10,
-			AI: "running"
-		},
-		RAT: {
-			name: "Rat",
-			health: 55,
-			img: new Image(),
-			width: 100,
-			height: 50,
-			strength: 5,
-			AI: "standing"
-		},
-		BAT: {
-			name: "Bat",
-			health: 50,
-			img: new Image(),
-			width: 85,
-			height: 50,
-			strength: 3,
-			AI: "flying"
-		}
-	}
-	//== Biomes
-	var BIOME = {
-		CLEARING: {
-			display: "Clearing",
-			id: 2,
-			enemies: [],
-			environmentImgs: []
-		},
-		FOREST: {
-			display: "Dark Forest",
-			id: -1,
-			enemies: [ENEMY_TYPE.RAT, ENEMY_TYPE.BAT],
-			environmentImgs: [],
-			WAYSTONE: {
-				img: new Image(),
-				overlayImg: new Image(),
-				color: {r: 210, g: 130, b: 210}
-			}
-		},
-		BOG: {
-			display: "Bog",
-			id: -1,
-			enemies: [ENEMY_TYPE.GATOR, ENEMY_TYPE.BAT],
-			environmentImgs: [],
-			WAYSTONE: {
-				img: new Image(),
-				overlayImg: new Image(),
-				color: {r: 0, g: globalEarth().g + globalWater().g, b: globalEarth().b + globalWater().b}
-			}
-		},
-		CAVE: {
-			display: "Cave",
-			id: -1,
-			enemies: [ENEMY_TYPE.RAT, ENEMY_TYPE.BAT],
-			environmentImgs: [],
-			WAYSTONE: {
-				img: new Image(),
-				overlayImg: new Image(),
-				color: {r: 150, g: 150, b: 150}
-			}
-		},
-		MOUNTAIN: {
-			display: "Desert",
-			id: -1,
-			enemies: [ENEMY_TYPE.GATOR, ENEMY_TYPE.RAT],
-			environmentImgs: [],
-			WAYSTONE: {
-				img: new Image(),
-				overlayImg: new Image(),
-				color: globalFire()
-			}
-		}
-	};
-	var biome0 = {};
-	var biome1 = {};
-	var biome2 = BIOME.CLEARING;
-	var biome3 = {};
-	var biome4 = {};
-	// returns a biome ID give a lerp across the level
-	function biomeAt(position) {
-		return level[clamp(Math.round((position.x/levelWidth()) * LEVEL_WIDTH), 0, LEVEL_WIDTH - 1)];
-	}
-	// returns a biome object given an ID
-	function biomeFromID(id) {
-		switch (id) {
-			case 0: return biome0; break;
-			case 1: return biome1; break;
-			case 3: return biome3; break;
-			case 4: return biome4; break;
-			default: return biome2; break;
-		}
-	}
 	//== Light Sources
 	var lightSources = [];
 	// helper functions to get global element light colors
 	function globalFire() { return {r: 225, g: 175, b: 20}; };
 	function globalWater() { return {r: 20, g: 100, b: 200}; };
 	function globalEarth() { return {r: 20, g: 200, b: 50}; };
-	//== Generic objects (scenery, harvestables, etc)
-	var objects = [];
-	var OBJECT = {
-		GLOWSHROOM: {
-			randomBiomes: [BIOME.BOG, BIOME.CAVE],
-			spawnChance: 0.025,
-			spawnInGroups: 3,
-			harvestable: -1,
-			img: new Image(),
-			xTiles: 6,
-			yTiles: 1,
-			light: {
-				color: globalWater(),
-				radius: 100,
-				scaleOnHarvest: 0.12,
-				alpha: 0.75
-			}
-		}
-	};
 	//== Waystones (teleporters)
 	var waystones = [];			// list of waystones
 	//== Particle Systems
@@ -359,6 +236,20 @@ game.engine = (function(){
 			particleExplode: PARTICLE_TYPE.EARTHEXPLODE,
 			particleLifetime: -1,
 			particlesPerFrame: 0.1,
+		},
+		POISONBOLT: {
+			strength: 4,
+			img: new Image(),
+			width: 16,
+			height: 16,
+			gravity: false,
+			velocity: 12,
+			cost: 50,
+			color: {r: 100, g: 0, b: 100},
+			particle: undefined,
+			particleExplode: undefined,
+			particleLifetime: -1,
+			particlesPerFrame: 0.1,
 		}
 	}
 	//== Runes
@@ -395,11 +286,135 @@ game.engine = (function(){
 		}
 	}
 	var runes = [];
+	//== Enemies
+	var enemies = [];			// array storing all enemies
+	var enemyLoop = -1;			// the ID of the looping enemy spawn function
+	var ENEMY_TYPE = {			// "enum" of the enemy types
+		GATOR: {
+			name: "GATOR",
+			health: 75,
+			img: new Image(),
+			width: 100,
+			height: 60,
+			strength: 10,
+			AI: "running"
+		},
+		RAT: {
+			name: "Rat",
+			health: 55,
+			img: new Image(),
+			width: 100,
+			height: 50,
+			strength: 5,
+			AI: "standing"
+		},
+		BAT: {
+			name: "Bat",
+			health: 50,
+			img: new Image(),
+			width: 85,
+			height: 50,
+			strength: 3,
+			AI: "flying",
+			projectile: PROJECTILE_TYPE.POISONBOLT
+		}
+	}
+	//== Biomes
+	var BIOME = {
+		CLEARING: {
+			display: "Clearing",
+			id: 2,
+			enemies: [],
+			environmentImgs: []
+		},
+		FOREST: {
+			display: "Dark Forest",
+			id: -1,
+			enemies: [ENEMY_TYPE.RAT, ENEMY_TYPE.BAT],
+			environmentImgs: [],
+			WAYSTONE: {
+				img: new Image(),
+				overlayImg: new Image(),
+				color: {r: 210, g: 130, b: 210}
+			}
+		},
+		BOG: {
+			display: "Bog",
+			id: -1,
+			enemies: [ENEMY_TYPE.GATOR, ENEMY_TYPE.BAT],
+			environmentImgs: [],
+			WAYSTONE: {
+				img: new Image(),
+				overlayImg: new Image(),
+				color: {r: 0, g: globalEarth().g + globalWater().g, b: globalEarth().b + globalWater().b}
+			}
+		},
+		CAVE: {
+			display: "Cave",
+			id: -1,
+			enemies: [ENEMY_TYPE.RAT, ENEMY_TYPE.BAT],
+			environmentImgs: [],
+			WAYSTONE: {
+				img: new Image(),
+				overlayImg: new Image(),
+				color: {r: 150, g: 150, b: 150}
+			}
+		},
+		MOUNTAIN: {
+			display: "Desert",
+			id: -1,
+			enemies: [ENEMY_TYPE.GATOR, ENEMY_TYPE.RAT],
+			environmentImgs: [],
+			WAYSTONE: {
+				img: new Image(),
+				overlayImg: new Image(),
+				color: globalFire()
+			}
+		}
+	};
+	var biome0 = {};
+	var biome1 = {};
+	var biome2 = BIOME.CLEARING;
+	var biome3 = {};
+	var biome4 = {};
+	// returns a biome ID give a lerp across the level
+	function biomeAt(position) {
+		return level[clamp(Math.round((position.x/levelWidth()) * LEVEL_WIDTH), 0, LEVEL_WIDTH - 1)];
+	}
+	// returns a biome object given an ID
+	function biomeFromID(id) {
+		switch (id) {
+			case 0: return biome0; break;
+			case 1: return biome1; break;
+			case 3: return biome3; break;
+			case 4: return biome4; break;
+			default: return biome2; break;
+		}
+	}
+	//== Generic objects (scenery, harvestables, etc)
+	var objects = [];
+	var OBJECT = {
+		GLOWSHROOM: {
+			randomBiomes: [BIOME.BOG, BIOME.CAVE],
+			spawnChance: 0.025,
+			spawnInGroups: 3,
+			harvestable: -1,
+			img: new Image(),
+			xTiles: 6,
+			yTiles: 1,
+			light: {
+				color: globalWater(),
+				radius: 100,
+				scaleOnHarvest: 0.12,
+				alpha: 0.75
+			}
+		}
+	};
 	//}
 	
 	//== PHYSICS VARIABLES ==//
 	var GRAVITY = 40;			// global gravity; this*dt added to velocity.y
-	function inControl() { return currentGameState === GAME_STATE.IDLE || currentGameState === GAME_STATE.CASTING; }
+	function inControl() { return currentGameState === GAME_STATE.IDLE; }
 	
 	//== GLOBAL HELPERS! ==//
 	//== Array Safe Splice
@@ -431,6 +446,7 @@ game.engine = (function(){
 		
 		// taps working as jumps 
 		canvas.addEventListener("mousedown", function(e) {
+			mouse = getMouse(e); worldMouse = mouse; worldMouse.position.x += screenX;
 			mouseDown = true;
 			e.preventDefault();
 			
@@ -695,6 +711,21 @@ game.engine = (function(){
 		for (var i = 0; i < waystones.length; ++i) waystones[i].getOther();
 		//}
 		
+		//== Begin enemy spawn loop ==//
+		enemyLoop = setInterval(function() {
+			// get the current biome at the player
+			var biomeCurrent = biomeFromID(Math.round(biomeAt(player.position)));
+			
+			// get the number of enemies on screen
+			var numOnScreen = 0;
+			for (var i = 0; i < enemies.length; ++i)
+				if (onScreen(enemies[i])) ++numOnScreen;
+			
+			// attempt to spawn an enemy
+			if (numOnScreen < 15 && biomeCurrent.enemies.length > 0 && inControl()) {
+				enemies.push(new Enemy(biomeCurrent.enemies.randomElement()));
+			}
+		}, 1000);
 		
 		//== Prepare UI ==//
 		windowManager.activateUI("controlsHUD");
@@ -839,6 +870,7 @@ game.engine = (function(){
 		PROJECTILE_TYPE.WATERGRENADE.img	= preloadImage("assets/watergrenade.png");
 		PROJECTILE_TYPE.EARTHBOLT.img 		= preloadImage("assets/earthbolt.png");
 		PROJECTILE_TYPE.EARTHGRENADE.img 	= preloadImage("assets/earthgrenade.png");
+		PROJECTILE_TYPE.POISONBOLT.img 		= preloadImage("assets/poisonBolt.png");
 		//}
 		
 		//== Particles //{
@@ -948,7 +980,7 @@ game.engine = (function(){
 		}
 	 	
 	 	// if paused, bail out of loop
-		if (paused && inControl()) {
+		if (currentGameState === GAME_STATE.PAUSED) {
 			return;
 		}
 		
@@ -1021,9 +1053,13 @@ game.engine = (function(){
 		else
 			player.draw();
 		
-		// if everyone is dead, send game to death screen
+		// if the player has died, send game to death screen
 		if (player.health <= 0 && currentGameState != GAME_STATE.DEAD) {
+			// Update game state
 			currentGameState = GAME_STATE.DEAD;
+			
+			// Cancel enemy spawn loop
+			clearInterval(enemyLoop);
 			
 			// attempt to add the score to the high score list
 			if (typeof(window.localStorage) != undefined) {
@@ -1050,11 +1086,6 @@ game.engine = (function(){
 					}
 				}
 			}
-		}
-		
-		// add an enemy if there isn't one
-		if (enemies.length < 50 && Math.random() < 0.015 && biomeCurrent.enemies.length > 0) {
-			enemies.push(new Enemy(biomeCurrent.enemies.randomElement()));
 		}
 		
 		// update enemies
@@ -1437,6 +1468,24 @@ game.engine = (function(){
 			}
 		}
 		
+		// FUNCTION: progresses game when waystones are activated
+		this.increaseProgression = function() {
+			// Increment global progression variable
+			++progression;
+			
+			// Update world game objects based on progression
+			switch (progression) {
+				case 1:
+					break;
+				case 2:
+					break;
+				case 3:
+					break;
+				case 4:
+					break;
+			}
+		}
+		
 		// Main update function
 		this.update = function() {
 			// Waystone only ever does anything if the player is touching it - check that first
@@ -1446,6 +1495,8 @@ game.engine = (function(){
 					// Only activate on touch if it's an outer waystone
 					// We check this separately so the else below triggers
 					if (!this.central) {
+						// Increment progression progresses the game as waystones are activated
+						this.increaseProgression();
 						this.active = true;
 						this.pair.active = true;
 						// force the pair's opacity scalar up so it'll glow once we teleport to it
@@ -1458,6 +1509,10 @@ game.engine = (function(){
 					this.opacityScalar = clamp(this.opacityScalar*1.025, 0, 1);
 					this.source.radius = Math.pow(this.bounds.x, 1.1) * this.opacityScalar;
 					this.source.alpha = this.opacityScalar;
+				}
+				else {
+					// Schedule a post-process draw of "Space to warp" if the player is overlapping
+					postProcesses.push(this.postDraw.bind(this));
 				}
 			
 				// Check if the player is jumping, and if this and its pair are active
@@ -1493,6 +1548,27 @@ game.engine = (function(){
 				offCtx.drawImage(this.waystoneType.overlayImg, -screenX + this.position.x - 5, this.position.y - 10);
 			offCtx.restore();
 		}
+		
+		// Postprocess draw
+		this.postDraw = function() {
+			fillText(ctx, "Jump to warp", -screenX + player.position.x + player.bounds.x/2, player.position.y - 30, "16pt 'Bad Script'", "white");
+		}
+	}
+	
+	// CLASS: the wizard's tower in the center of the map
+	function WizardTower() {
+		// Inherits from GameObject
+		GameObject.call(this);
+		
+		// Initial variables
+		this.position = new Victor(levelWidth()/2, TERRAIN_HEIGHT);
+		
+		// Main tower draw
+		this.draw = function() {
+			ctx.save();
+				ctx.drawImage(towerImg, this.position.x, this.position.y);
+			ctx.restore();
+		}
 	}
 	
 	// CLASS: player object
@@ -1522,11 +1598,6 @@ game.engine = (function(){
 			this.image.width,
 			this.image.height
 		);
-		
-		// FUNCTION: prints player information to console
-		this.toString = function() {
-			console.log("Player is at " + this.position.toString());
-		}
 		
 		// FUNCTION: damage the player, does appropriate armor checks, etc
 		this.damage = function(power) {
@@ -1779,12 +1850,20 @@ game.engine = (function(){
 				this.velocity = Victor().subtract(this.position).norm().multiply(Victor(this.speed, this.speed));
 		else
 			this.velocity = Victor().subtract(this.position).norm().multiply(Victor(this.speed, this.speed));
+		
+		// give starting angle to enemy projectiles
+		if (this.enemyProj)
+			this.time = this.velocity.angle();
 			
 		// attach a light source and particle system based on the types declared in the projectile enum
-		this.system = new ParticleSystem(this, this.projType.particle, -1, this.projType.particleLifetime, this.projType.particlesPerFrame);
-		this.light = new LightSource(this, this.projType.color, this.projType.width*4, -1, true, true, 1);
-		particleSystems.push(this.system);
-		lightSources.push(this.light);
+		if (this.projType.particle != undefined) {
+			this.system = new ParticleSystem(this, this.projType.particle, -1, this.projType.particleLifetime, this.projType.particlesPerFrame);
+			particleSystems.push(this.system);
+		}
+		if (this.projType.color != {}) {
+			this.light = new LightSource(this, this.projType.color, this.projType.width*4, -1, true, true, 1);
+			lightSources.push(this.light);
+		}
 		
 		// FUNCTION: gives a generalized string that portrays its projectile type
 		this.type = function() {
@@ -1817,7 +1896,8 @@ game.engine = (function(){
 				// for bolts, they just explode (disappear)
 				if (this.type() === "bolt") {
 					// create a quick 'particle burst'
-					particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: this.bounds.clone()}, this.projType.particle, 1, this.projType.particleLifetime, Math.min(Math.max(0.5, this.projType.particlesPerFrame)*20, 40)));
+					if (this.projType.particleExplode != {})
+						particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: this.bounds.clone()}, this.projType.particle, 1, this.projType.particleLifetime, Math.min(Math.max(0.5, this.projType.particlesPerFrame)*20, 40)));
 					// splice out the projectile's particle system, and itself
 					particleSystems.safeSplice(particleSystems.indexOf(this.system), 1);
 					projectiles.safeSplice(projectiles.indexOf(this), 1);
@@ -1851,23 +1931,31 @@ game.engine = (function(){
 			if (this.numBounces >= 3)
 				victim = this;
 				
-			// check player collisions if it's an enemy projectile
+			// Check player collisions if it's an enemy projectile
 			if (this.enemyProj && this.overlaps(player)) {
-				victim = p;
+				victim = player;
 			}
 			
-			// loop through enemies if it's a non-enemy projectile
-			if (!this.enemyProj)
+			// For player projectiles, check enemy and enemy projectile collisions
+			if (!this.enemyProj) {
+				// loop through enemies
 				for (var i = 0; i < enemies.length; ++i) {
-					// get currently looped terrain object
-					var e = enemies[i];
-					
-					// update onGround variable by comparing pos to each terrain object
-					if (this.overlaps(e)) {
-						victim = e;
+					// check if the projectile is hitting the enemy
+					if (this.overlaps(enemies[i])) {
+						victim = enemies[i];
 						break;
 					}
 				}
+				
+				// loop through enemy projectiles
+				for (var i = 0; i < projectiles.length; ++i) {
+					// check if the projectiles are hitting
+					if (this.overlaps(projectiles[i]) && projectiles[i] != this) {
+						victim = projectiles[i];
+						break;
+					}
+				}
+			}
 			
 			// if it has a hit something
 			if (victim != "") {
@@ -1886,6 +1974,12 @@ game.engine = (function(){
 							particleSystems.push(new ParticleSystem(victim, PARTICLE_TYPE.BURN, 60, 15, 1));
 						victim.fireTicks = 60;
 					}
+				}
+				// otherwise, we hit a projectile - delete it
+				else {
+					particleSystems.safeSplice(particleSystems.indexOf(victim.system), 1);
+					projectiles.safeSplice(projectiles.indexOf(victim), 1);
+					victim.light.root = "dying";
 				}
 				
 				// if this is a grenade, loop enemies and do an AOE
@@ -1918,11 +2012,13 @@ game.engine = (function(){
 					}
 					
 					// push grenade explosion particle system
-					particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: this.bounds.clone()}, this.projType.particleExplode, 1, this.projType.particleLifetime, this.projType.strength*3));
+					if (this.projType.particle != undefined)
+						particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: this.bounds.clone()}, this.projType.particle, 1, this.projType.particleLifetime, this.projType.strength*3));
 				}
 				else {
 					// for bolts create a quick 'particle burst' as if the projectile shattered
-					particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: this.bounds.clone()}, this.projType.particle, 1, this.projType.particleLifetime, Math.min(Math.max(0.5, this.projType.particlesPerFrame)*20, 40)));
+					if (this.projType.particle != undefined)
+						particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: this.bounds.clone()}, this.projType.particle, 1, this.projType.particleLifetime, Math.min(Math.max(0.5, this.projType.particlesPerFrame)*20, 40)));
 				}
 				
 				// delete this one
@@ -1940,8 +2036,9 @@ game.engine = (function(){
 	
 		// FUCNTION: main projectile draw call
 		this.draw = function() {
-			// draw increments based on y speed
-			this.time += this.velocity.clone().norm().x/7;//0.1*(this.velocity.x == 0 ? 1 : Math.sign(this.velocity.x));//
+			// Rotation increments based on y speed for player projectiles
+			if (!this.enemyProj)
+				this.time += this.velocity.clone().norm().x/7;
 			
 			offCtx.save();
 			offCtx.translate(-screenX + this.position.x + this.bounds.x/2, this.position.y + this.bounds.y/2);
@@ -2040,9 +2137,10 @@ game.engine = (function(){
 			TERRAIN_HEIGHT - this.bounds.y*1.5
 		);
 		
-		// flying enemies spawn at the top of the screen
-		if (this.enemyType.AI === "flying")
+		// flying enemies spawn at the top of the screen and shoot projectiles
+		if (this.enemyType.AI === "flying") {
 			this.position.y = 0;
+		}
 		
 		// some spawn on left of screen instead
 		if (Math.random() < 0.5) this.position.x = screenX - this.frameWidth*2;
@@ -2061,12 +2159,16 @@ game.engine = (function(){
 			
 			// always move towards the player's other side
 			this.targetPos = player.position.clone();
-			this.targetPos.x += player.bounds.x/4 * this.xScale;
+			this.targetPos.x += player.bounds.x * this.xScale;
 			
 			// bobbing for flying enemies, and target above the player
 			if (this.enemyType.AI === "flying") {
 				this.position.y += Math.sin(time/10);
-				this.targetPos.y -= this.bounds.y*2;
+				this.targetPos.y -= this.bounds.y*4;
+				
+				// randomly shoot projectiles
+				if (Math.random() < 0.001 && currentGameState != GAME_STATE.PAUSED && onScreen(this))
+					projectiles.push(new Projectile(this.position.x, this.position.y, player, this.enemyType.projectile, true));
 			}
 				
 			// lose health from active DOTs
@@ -2316,8 +2418,8 @@ game.engine = (function(){
 	function pauseGame() {
 		// since pause can be called multiple ways
 		// prevents multiple redraws of pause screen
-		if (!paused && inControl()) {
-			paused = true;
+		if (currentGameState != GAME_STATE.PAUSED && inControl()) {
+			currentGameState = GAME_STATE.PAUSED;
 			bgAudio.pause();
 			
 			// stop the animation loop if the player is alive
@@ -2336,7 +2438,7 @@ game.engine = (function(){
 	
 	// RESUME FUNCTION: resumes the game
 	function resumeGame() {
-		paused = false;
+		currentGameState = GAME_STATE.IDLE;
 		//bgAudio.play();
 		
 		// forcibly end animation loop in case it's running
@@ -2370,7 +2472,7 @@ game.engine = (function(){
 		// p - toggle game paused
 		if (e.keyCode === KEY.P) {
 			// check if paused, and toggle it
-			if (paused)
+			if (currentGameState === GAME_STATE.PAUSED)
 				resumeGame();
 			else
 				pauseGame();
