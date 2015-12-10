@@ -62,10 +62,7 @@ game.engine = (function(){
 	//== Player
 	var player = {};				// the player object
 	var playerRun = new Image();	// the player's run spritesheet
-	var playerRunArmFront = new Image(); // the player's running front arm
-	var playerRunArmBack = new Image(); // the player's running back arm
 	var playerToIdle = new Image();	// the player's tranisition to idle from run
-	var playerIdle = new Image();	// the player's idle animation
 	//== World
 	var TERRAIN_WIDTH = 10;		// width of a terrain tile
 	var TERRAIN_HEIGHT = 0; 	// height of terrain from the bottom of the screen
@@ -169,6 +166,9 @@ game.engine = (function(){
 			gravity: false,
 			velocity: 15,
 			cost: 10,
+			launchSnd: "firebolt.mp3",
+			impactSnd: "fireImpact.mp3",
+			breakSnd: "glassBreak.mp3",
 			color: globalFire(),
 			particle: PARTICLE_TYPE.FLAME,
 			particleLifetime: 6,
@@ -182,6 +182,9 @@ game.engine = (function(){
 			gravity: false,
 			velocity: 22,
 			cost: 7,
+			launchSnd: "waterLaunch.mp3",
+			impactSnd: "waterImpact.mp3",
+			breakSnd: "glassBreak.mp3",
 			color: globalWater(),
 			particle: PARTICLE_TYPE.WATERDRIP,
 			particleLifetime: 20,
@@ -195,7 +198,9 @@ game.engine = (function(){
 			gravity: true,
 			velocity: 20,
 			cost: 20,
-			terrainHitSnd: "clink.mp3",
+			launchSnd: "earthbolt.mp3",
+			impactSnd: "earthShatter.mp3",
+			breakSnd: "earthGrenade.mp3",
 			color: globalEarth(),
 			particle: PARTICLE_TYPE.EARTH,
 			particleLifetime: -1,
@@ -210,6 +215,9 @@ game.engine = (function(){
 			velocity: 13,
 			cost: 40,
 			color: globalFire(),
+			launchSnd: "fireLaunch.mp3",
+			impactSnd: "fireImpact.mp3",
+			breakSnd: "fireGrenade.mp3",
 			particle: PARTICLE_TYPE.FLAME,
 			particleExplode: PARTICLE_TYPE.FLAMEEXPLODE,
 			particleLifetime: 6,
@@ -224,6 +232,9 @@ game.engine = (function(){
 			velocity: 15,
 			cost: 30,
 			color: globalWater(),
+			launchSnd: "waterLaunch.mp3",
+			impactSnd: "waterImpact.mp3",
+			breakSnd: "waterGrenade.mp3",
 			particle: PARTICLE_TYPE.WATERDRIP,
 			particleExplode: PARTICLE_TYPE.WATEREXPLODE,
 			particleLifetime: -1,
@@ -238,8 +249,9 @@ game.engine = (function(){
 			velocity: 10,
 			cost: 50,
 			color: globalEarth(),
-			terrainHitSnd: "clink.mp3",
-			breakSnd: "glassBreak.mp3",
+			launchSnd: "earthLaunch.mp3",
+			impactSnd: "earthImpact.mp3",
+			breakSnd: "earthGrenade.mp3",
 			particle: PARTICLE_TYPE.EARTH,
 			particleExplode: PARTICLE_TYPE.EARTHEXPLODE,
 			particleLifetime: -1,
@@ -254,6 +266,9 @@ game.engine = (function(){
 			velocity: 12,
 			cost: 50,
 			color: {r: 100, g: 0, b: 100},
+			launchSnd: "whoosh.mp3",
+			impactSnd: "",
+			breakSnd: "",
 			particle: undefined,
 			particleExplode: undefined,
 			particleLifetime: -1,
@@ -453,6 +468,7 @@ game.engine = (function(){
 		bgAudio = document.querySelector('#bgAudio');
 		
 		// start music loop
+		bgAudio.volume = 0.2;
 		bgAudio.play();
 		
 		// taps working as jumps 
@@ -592,10 +608,10 @@ game.engine = (function(){
 		
 		//== Register Pause Screen ==//{
 		windowManager.makeUI("pauseScreen", 0, 0, canvas.width, canvas.height);
-		var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-		grad.addColorStop(0, "rgb(0, 0, 50)");
-		grad.addColorStop(1, "rgb(10, 10, 10)");
-		windowManager.modifyUI("pauseScreen", "fill", {color: grad});
+		var grad2 = ctx.createLinearGradient(0, 0, 0, canvas.height);
+		grad2.addColorStop(0, "rgb(0, 0, 50)");
+		grad2.addColorStop(1, "rgb(10, 10, 10)");
+		windowManager.modifyUI("pauseScreen", "fill", {color: grad2});
 		windowManager.activateUIPausing("pauseScreen");
 		windowManager.makeText("pauseScreen", "pause", 50, 50, "default", "default", "Paused", "40pt 'Bad Script'", "rgb(250, 255, 195)");
 		// continue button
@@ -878,8 +894,6 @@ game.engine = (function(){
 		//== Player
 		playerRun = preloadImage("assets/playerRun.png");
 		playerToIdle = preloadImage("assets/playerToIdle.png");
-		playerRunArmFront = preloadImage("assets/playerRunArmFront.png");
-		playerRunArmBack = preloadImage("assets/playerRunArmBack.png");
 			
 		//== Biome Assets //{
 		// Clearing
@@ -1872,10 +1886,12 @@ game.engine = (function(){
 					if (this.xScale === 0) this.xScale = 1;	// catch if the mouse x = the player's x
 
 					// Cast the spell
-					if (this.spellType === "rune")
+					if (this.spellType === "rune") {
 						runes.push(new Rune(type));
-					else
+					}
+					else {
 						projectiles.push(new Projectile(this.position.x+this.bounds.x/2 - type.width/2, this.position.y+this.bounds.y/2 - type.height/2, worldMouse, type, false));
+					}
 					
 					// Modify UI elements and pay spell cost
 					windowManager.deactivateUI("controlsHUD3");
@@ -1895,6 +1911,14 @@ game.engine = (function(){
 				this.velocity.x -= 0.75;
 			if (keys[KEY.D] && this.onGround)
 				this.velocity.x += 0.75;
+			
+			// play varying footstep sounds on certain animation frames
+			if (Math.abs(this.velocity.x) > 0) {
+				if (Math.floor(this.time) === 0)
+					playStream("footstep1.mp3", Math.min(1, Math.abs(this.velocity.x)/35));
+				if (Math.floor(this.time) === 13)
+					playStream("footstep2.mp3", Math.min(1, Math.abs(this.velocity.x)/35));
+			}
 			
 			// Update bounding/physics/image variables based on player's state
 			// change image based on state
@@ -1975,6 +1999,10 @@ game.engine = (function(){
 		else
 			this.velocity = Victor().subtract(this.position).norm().multiply(Victor(this.speed, this.speed));
 		
+		// play the projectile's shooting sound
+		if (this.projType.launchSnd != "")
+			playStream(this.projType.launchSnd, 0.5);
+						
 		// give starting angle to enemy projectiles
 		if (this.enemyProj)
 			this.time = this.velocity.angle();
@@ -2015,7 +2043,7 @@ game.engine = (function(){
 			// handle hitting terrain
 			if (this.position.y + this.bounds.y > TERRAIN_HEIGHT) {
 				// play its terrain collision sound effect
-				if (this.projType.terrainHitSnd) playStream(this.projType.terrainHitSnd, 0.2*this.ySpeed());
+				if (this.projType.impactSnd) playStream(this.projType.impactSnd, 0.2*this.ySpeed());
 				
 				// for bolts, they just explode (disappear)
 				if (this.type() === "bolt") {
@@ -2074,7 +2102,7 @@ game.engine = (function(){
 				// loop through enemy projectiles
 				for (var i = 0; i < projectiles.length; ++i) {
 					// check if the projectiles are hitting
-					if (this.overlaps(projectiles[i]) && projectiles[i] != this) {
+					if (this.overlaps(projectiles[i]) && projectiles[i] != this && projectiles[i].enemyProj) {
 						victim = projectiles[i];
 						break;
 					}
@@ -2090,6 +2118,7 @@ game.engine = (function(){
 						
 					// damage the victim
 					victim.damage(this.projType.strength);
+					if (this.projType.impactSnd) playStream(this.projType.impactSnd, 0.2*this.ySpeed());
 					
 					// if this projectile is fire based, ignite the enemy and give
 					// them a flame particle system if it's not already on fire
@@ -2138,6 +2167,9 @@ game.engine = (function(){
 					// push grenade explosion particle system
 					if (this.projType.particle != undefined)
 						particleSystems.push(new ParticleSystem({position: this.position.clone(), bounds: this.bounds.clone()}, this.projType.particle, 1, this.projType.particleLifetime, this.projType.strength*3));
+					
+					// play the grenade's breaking sound
+					playStream(this.projType.breakSnd, 1);
 				}
 				else {
 					// for bolts create a quick 'particle burst' as if the projectile shattered
@@ -2182,12 +2214,16 @@ game.engine = (function(){
 		this.bounds = new Victor(this.runeType.width, this.runeType.width);
 		this.light = {};
 		this.system = {};
+		this.alpha = 0;
 		
 		// create particle system and light based on rune type
 		//this.system = new ParticleSystem(this, this.projType.particle, -1, this.projType.particleLifetime, this.projType.particlesPerFrame);
-		this.light = new LightSource(this, this.runeType.color, this.bounds.x, -1, false, true, 1);
+		this.light = new LightSource(this, this.runeType.color, this.bounds.x, -1, false, true, 0);
 		//particleSystems.push(this.system);
 		lightSources.push(this.light);
+		// play rune activate noise
+		playStream("runePlace.mp3", 0.1);
+		
 		
 		// Update - checks if enemies have triggered the rune
 		this.update = function() {
@@ -2228,9 +2264,16 @@ game.engine = (function(){
 		
 		// Draw
 		// Called as a postprocesses
-		this.draw = function() {			
+		this.draw = function() {
+			// fade the rune into existence
+			if (this.alpha < 1) {
+				this.alpha += 0.01;
+				this.light.alpha = this.alpha;
+			}
+		
 			// draw the rune on the ground
 			ctx.save();
+				ctx.globalAlpha = this.alpha;
 				var grad = ctx.createLinearGradient(-screenX + this.position.x, this.position.y - this.runeType.width/2, -screenX + this.position.x, this.position.y + this.runeType.width/2);
 				grad.addColorStop(0, colorString(this.runeType.color, 0));
 				grad.addColorStop(1, colorString(this.runeType.color, 0.5));
@@ -2521,7 +2564,7 @@ game.engine = (function(){
 			// Draw call: set light to be drawn as a postprocess
 			// Particles don't draw an actual colored glow for performance reasons
 			// We pass in a fake object to onScreen() to represent the light's bounding box
-			if (!(this.root instanceof Particle) && visible && onScreen({position: Victor(this.position.x - this.radius, this.position.y - this.radius), bounds: this.bounds}))
+			if (!(this.root instanceof Particle) && visible && onScreen({position: Victor(this.position.x + this.offset.x - this.radius, this.position.y + this.offset.y - this.radius), bounds: this.bounds}))
 				postProcesses.push(this.draw.bind(this));
 		}
 		
@@ -2533,8 +2576,8 @@ game.engine = (function(){
 			// create a radial gradient of the light's color
 			var radial = ctx.createRadialGradient(adjPos.x, adjPos.y, Math.max(this.radius, 0), adjPos.x, adjPos.y, 0);
 			radial.addColorStop(0, colorString(color, 0));
-			radial.addColorStop(0.2, colorString(color, 0.05*alpha));
-			radial.addColorStop(1, colorString(color, 0.3*alpha));
+			radial.addColorStop(0.2, colorString(color, 0.05*this.alpha));
+			radial.addColorStop(1, colorString(color, 0.3*this.alpha));
 			ctx.fillStyle = radial;
 			// draw the gradient
 			ctx.beginPath();

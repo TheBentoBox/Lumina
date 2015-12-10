@@ -13,7 +13,3 @@ window.onload = function() {
 window.onblur = function() {
 	game.engine.pauseGame();
 };
-
-window.onfocus = function() {
-	game.engine.resumeGame();
-};

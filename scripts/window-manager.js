@@ -463,8 +463,7 @@ game.windowManager = (function(){
 				}
 				
 				// draw image
-				if(this.image.src != null && this.image.src != "" && this.image.src != undefined){
-					console.log(this.image + ", " + this.image.src);
+				if(this.image.src != null && this.image.src != "" && this.image.src != undefined) {
 					ctx.drawImage(this.image, this.position.x, this.position.y);
 				}
 				
