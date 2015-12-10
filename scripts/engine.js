@@ -35,7 +35,8 @@ game.engine = (function(){
 	var waterRune 	  	= new Image();
 	var earthRune 	  	= new Image();
 	var emptyRune 	  	= new Image();
-	var playerImage		= new Image();
+	var towerImg		= new Image();
+	var towerInterior	= new Image();
 	var numImages	  	= 0;
 	var numImagesLoaded = 0;
 	//}
@@ -47,14 +48,11 @@ game.engine = (function(){
 		IDLE: 1,				// level is sitting idly
 		PAUSED: 2,				// the game is paused
 		BETWEEN: 3,				// between level upgrade
-		DEAD: 4,				// game over screen
-		HIGHSCORE: 5			// viewing the high score table
+		DEAD: 4					// game over screen
 	}
 	var currentGameState = GAME_STATE.START; // what is currently happening in the game
 	var currentLevel = 0;		// what level the player is on
 	var keys = [];				// array to store pressed keys
-	var experience = 0;			// increases like score, but can be spent for upgrades
-	var score = 0;				// current score, = number of terrain objects passed
 	var highScores = [];		// array of high scores when they're loaded in
 	var postProcesses = [];		// an array that stores callbacks to object draws that should be called after shading is applied
 	
@@ -62,20 +60,27 @@ game.engine = (function(){
 	var progression = 0;
 	
 	//== Player
-	var player = {};			// the player object
-	//== Level
+	var player = {};				// the player object
+	var playerRun = new Image();	// the player's run spritesheet
+	var playerRunArmFront = new Image(); // the player's running front arm
+	var playerRunArmBack = new Image(); // the player's running back arm
+	var playerToIdle = new Image();	// the player's tranisition to idle from run
+	var playerIdle = new Image();	// the player's idle animation
+	//== World
 	var TERRAIN_WIDTH = 10;		// width of a terrain tile
 	var TERRAIN_HEIGHT = 0; 	// height of terrain from the bottom of the screen
-	var LEVEL_WIDTH = 3000;		// width of a level in tiles, pixel width is this*TERRAIN_WIDTH
-	var level = [];				// array storing the map of the current level
+	var LEVEL_WIDTH = 6000;		// width of a level in tiles, pixel width is this*TERRAIN_WIDTH
+	var world = [];				// array storing the world map
 	var screenX = (LEVEL_WIDTH*TERRAIN_WIDTH)/2 - 640;	// current horizontal position of camera in level
 	function levelWidth() { return LEVEL_WIDTH*TERRAIN_WIDTH; }
+	var wizardTower = {};		// a reference to the wizard's tower itself
 	//== Light Sources
 	var lightSources = [];
 	// helper functions to get global element light colors
 	function globalFire() { return {r: 225, g: 175, b: 20}; };
 	function globalWater() { return {r: 20, g: 100, b: 200}; };
 	function globalEarth() { return {r: 20, g: 200, b: 50}; };
+	function globalLight() { return {r: 250, g: 255, b: 195}; };
 	//== Waystones (teleporters)
 	var waystones = [];			// list of waystones
 	//== Particle Systems
@@ -190,6 +195,7 @@ game.engine = (function(){
 			gravity: true,
 			velocity: 20,
 			cost: 20,
+			terrainHitSnd: "clink.mp3",
 			color: globalEarth(),
 			particle: PARTICLE_TYPE.EARTH,
 			particleLifetime: -1,
@@ -232,7 +238,8 @@ game.engine = (function(){
 			velocity: 10,
 			cost: 50,
 			color: globalEarth(),
-			//terrainHitSnd: "clink.mp3"
+			terrainHitSnd: "clink.mp3",
+			breakSnd: "glassBreak.mp3",
 			particle: PARTICLE_TYPE.EARTH,
 			particleExplode: PARTICLE_TYPE.EARTHEXPLODE,
 			particleLifetime: -1,
@@ -383,7 +390,7 @@ game.engine = (function(){
 	var biome4 = {};
 	// returns a biome ID give a lerp across the level
 	function biomeAt(position) {
-		return level[clamp(Math.round((position.x/levelWidth()) * LEVEL_WIDTH), 0, LEVEL_WIDTH - 1)];
+		return world[clamp(Math.round((position.x/levelWidth()) * LEVEL_WIDTH), 0, LEVEL_WIDTH - 1)];
 	}
 	// returns a biome object given an ID
 	function biomeFromID(id) {
@@ -445,8 +452,8 @@ game.engine = (function(){
 		// get reference to audio element
 		bgAudio = document.querySelector('#bgAudio');
 		
-		// load default song and title, and play
-		//playStream(sfxPlayer);
+		// start music loop
+		bgAudio.play();
 		
 		// taps working as jumps 
 		canvas.addEventListener("mousedown", function(e) {
@@ -478,7 +485,7 @@ game.engine = (function(){
 			}
 		}.bind(this));
 		// compatibility for touch devices
-		canvas.addEventListener("touchstart", function(e) { 
+		canvas.addEventListener("touchstart", function(e) {
 			mouseDown = true;
 			e.preventDefault();
 			
@@ -500,9 +507,9 @@ game.engine = (function(){
 		canvas.addEventListener("touchend", function(e) { mouseDown = false; });
 		
 		// callback for button presses
-		window.addEventListener("keydown", keyPress);
+		window.addEventListener("keydown", function(e) { keyPress(e, false); });
 		// callback for button presses
-		window.addEventListener("keyup", keyRelease);
+		window.addEventListener("keyup", function(e) { keyRelease(e, false); });
 		
 		//== Register Title Screen UI ==//{
 		windowManager.makeUI("titleScreen", 0, 0, canvas.width, canvas.height);
@@ -581,10 +588,11 @@ game.engine = (function(){
 		windowManager.modifyUI("enemyHUD", "fill", {color: "#3C3C3C"});
 		windowManager.modifyUI("enemyHUD", "border", {color: "#222", width: 4});
 		windowManager.makeImage("enemyHUD", "enemyImage", 10, 10, 80, 60, new Image());
-		windowManager.modifyImage("enemyHUD", "enemyImage", "fill", {color: "#444"});
+		windowManager.modifyImage("enemyHUD", "enemyImage", "fill", {color: "#000"});
 		windowManager.modifyImage("enemyHUD", "enemyImage", "border", {color: "#222", width: 4});
 		windowManager.makeText("enemyHUD", "enemyName", 130, 10, canvas.width / 3 - 130, 40, "", "12pt 'Bad Script'", "white");
 		windowManager.makeBar("enemyHUD", "enemyHealth", 130, 40, canvas.width / 3 - 150, 30, 1, 1, 0);
+		windowManager.modifyBar("enemyHUD", "enemyHealth", "fill", {foreColor: "#080", backColor: "#880000"});
 		//}
 		
 		// BEGIN main game tick
@@ -594,7 +602,6 @@ game.engine = (function(){
 	// Setup a new game
 	function setupGame() {
 		// reset variables
-		score = 0;
 		currentLevel = 0;
 		currentGameState = GAME_STATE.IDLE;
 		windowManager.deactivateUI("titleScreen");
@@ -607,16 +614,13 @@ game.engine = (function(){
 
 		// attach a light source to the player
 		lightSources.push(new LightSource(player, {r: 255, g: 255, b: 255}, 200, -1, true, false, 1));
-		
-		// start music loop
-		bgAudio.play();
 	}
 	
 	// Setup the next level
 	function setupLevel() {
 		// increment level number and set up level variables
 		++currentLevel;
-		screenX = (LEVEL_WIDTH*TERRAIN_WIDTH)/2 - canvas.width/2 + playerImage.width/2; // center screen on level
+		screenX = (LEVEL_WIDTH*TERRAIN_WIDTH)/2 - canvas.width/2; // center screen on level
 		
 		//== Reset entities ==//
 		enemies = [];
@@ -624,6 +628,7 @@ game.engine = (function(){
 		particleSystems = [];
 		projectiles = [];
 		lightSources = [];
+		waystones = [];
 		
 		//== Prepare the level ==//
 		// Assign biome IDs //{
@@ -657,35 +662,35 @@ game.engine = (function(){
 			
 			// Biome 0
 			if (lerp < 0.2)
-				level[i] = 0;
+				world[i] = 0;
 			// 0-1 transition
 			if (lerp >= 0.2 && lerp < 0.25)
-				level[i] = (lerp - 0.2)/0.05;
+				world[i] = (lerp - 0.2)/0.05;
 			// Biome 1
 			if (lerp >= 0.25 && lerp < 0.425)
-				level[i] = 1;
+				world[i] = 1;
 			// 1-2 transition
 			if (lerp >= 0.425 && lerp < 0.475)
-				level[i] = 1 + (lerp-0.425)/0.05;
+				world[i] = 1 + (lerp-0.425)/0.05;
 			// Biome 2 (clearing)
 			if (lerp >= 0.475 && lerp < 0.525)
-				level[i] = 2;
+				world[i] = 2;
 			// 2-3 transition
 			if (lerp >= 0.525 && lerp < 0.575)
-				level[i] = 2 + (lerp-0.525)/0.05;
+				world[i] = 2 + (lerp-0.525)/0.05;
 			// Biome 3
 			if (lerp >= 0.575 && lerp < 0.75)
-				level[i] = 3;
+				world[i] = 3;
 			// 1-2 transition
 			if (lerp >= 0.75 && lerp < 0.8)
-				level[i] = 3 + (lerp-0.75)/0.05;
+				world[i] = 3 + (lerp-0.75)/0.05;
 			// Biome 4
 			if (lerp >= 0.8)
-				level[i] = 4;
+				world[i] = 4;
 				
 			//== Attempt to create game objects at each tile
 			// get the biome object
-			var biome = biomeFromID(Math.round(level[i]));
+			var biome = biomeFromID(Math.round(world[i]));
 			for (var key in OBJECT) {
 				// rule out base object properties
 				if (OBJECT.hasOwnProperty(key)) {
@@ -718,17 +723,19 @@ game.engine = (function(){
 		waystones.push(new Waystone(biome0.WAYSTONE, Victor(levelWidth()*0.485 - biome0.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome0.WAYSTONE.img.height/2)));
 		//== Biome1 waystones
 		waystones.push(new Waystone(biome1.WAYSTONE, Victor(levelWidth()*0.26 - biome1.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome1.WAYSTONE.img.height/2)));
-		waystones.push(new Waystone(biome1.WAYSTONE, Victor(levelWidth()*0.495 - biome1.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome1.WAYSTONE.img.height/2)));
+		waystones.push(new Waystone(biome1.WAYSTONE, Victor(levelWidth()*0.49 - biome1.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome1.WAYSTONE.img.height/2)));
 		// Skip biome2 - it's always the clearing!
 		//== Biome3 waystones
 		waystones.push(new Waystone(biome3.WAYSTONE, Victor(levelWidth()*0.74 - biome3.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome3.WAYSTONE.img.height/2)));
-		waystones.push(new Waystone(biome3.WAYSTONE, Victor(levelWidth()*0.505 - biome3.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome3.WAYSTONE.img.height/2)));
+		waystones.push(new Waystone(biome3.WAYSTONE, Victor(levelWidth()*0.51 - biome3.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome3.WAYSTONE.img.height/2)));
 		//== Biome4 waystones
 		waystones.push(new Waystone(biome4.WAYSTONE, Victor(levelWidth()*0.99 - biome4.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome4.WAYSTONE.img.height/2)));
 		waystones.push(new Waystone(biome4.WAYSTONE, Victor(levelWidth()*0.515 - biome4.WAYSTONE.img.width/2, TERRAIN_HEIGHT - biome4.WAYSTONE.img.height/2)));
 		//== Make all waystones find their pair
 		for (var i = 0; i < waystones.length; ++i) waystones[i].getOther();
 		//}
+		// Create tower //
+		wizardTower = new WizardTower();
 		
 		//== Begin enemy spawn loop ==//
 		enemyLoop = setInterval(function() {
@@ -744,7 +751,7 @@ game.engine = (function(){
 			if (numOnScreen < 15 && biomeCurrent.enemies.length > 0 && inControl()) {
 				enemies.push(new Enemy(biomeCurrent.enemies.randomElement()));
 			}
-		}, 1000);
+		}, 1700);
 		
 		//== Prepare UI ==//
 		windowManager.activateUI("controlsHUD");
@@ -825,7 +832,10 @@ game.engine = (function(){
 		//}
 			
 		//== Player
-		playerImage = preloadImage("assets/player.png");
+		playerRun = preloadImage("assets/playerRun.png");
+		playerToIdle = preloadImage("assets/playerToIdle.png");
+		playerRunArmFront = preloadImage("assets/playerRunArmFront.png");
+		playerRunArmBack = preloadImage("assets/playerRunArmBack.png");
 			
 		//== Biome Assets //{
 		// Clearing
@@ -862,6 +872,10 @@ game.engine = (function(){
 		BIOME.MOUNTAIN.environmentImgs[4] = preloadImage("assets/SceneryMountain4.png");
 		BIOME.MOUNTAIN.environmentImgs[5] = preloadImage("assets/SceneryMountain5.png");
 		//}
+		
+		//== Tower
+		towerImg = preloadImage("assets/towerExterior.png");
+		towerInterior = preloadImage("assets/towerInterior.png");
 		
 		//== Game Objects
 		OBJECT.GLOWSHROOM.img = preloadImage("assets/GlowbitMushrooms.png");
@@ -977,30 +991,7 @@ game.engine = (function(){
 			windowManager.updateAndDraw({});
 			return;
 		}
-		
-		// draw high score screen
-		if (currentGameState === GAME_STATE.HIGHSCORE) {
-			ctx.fillStyle = "rgb(20, 20, 20)";
-			ctx.fillRect(0, 0, canvas.width, canvas.height);
-			ctx.fill();
-			fillText(ctx, "High Scores", canvas.width/2, 100, "30pt 'Bad Script'", "white");
-			fillText(ctx, "Press H to return to the main menu", canvas.width/2, 135, "18pt 'Bad Script'", "white");
-			
-			// only draw high scores if localStorage is available
-			if (typeof(window.localStorage) != undefined) {
-				// loop through scores
-				for (var i = 0; i < 10; ++i) {
-					// draw 0 in place of null scores
-					fillText(ctx, (i+1) + ". " + highScores[i], canvas.width/2, 200 + i*40, "20pt 'Bad Script'", "white");
-				}
-			}
-			// otherwise, draw an error message
-			else {
-				fillText(ctx, "Your system does not support high score storage.", canvas.width/2, canvas.height/2, "18pt 'Bad Script'", "white");
-			}
-			return;
-		}
-	 	
+		 	
 	 	// if paused, bail out of loop
 		if (currentGameState === GAME_STATE.PAUSED) {
 			return;
@@ -1051,6 +1042,11 @@ game.engine = (function(){
 		// All entities actually draw on the offsreen canvas in their draw function
 		// We will then manipulate lighting on the offscreen canvas and move it to the onscreen
 				
+		// draw wizard tower
+		if (onScreen(wizardTower)) {
+			wizardTower.update();
+		}
+				
 		// draw onscreen game objects
 		for (var i = 0; i < objects.length; ++i) {
 			if (onScreen(objects[i]))
@@ -1082,32 +1078,6 @@ game.engine = (function(){
 			
 			// Cancel enemy spawn loop
 			clearInterval(enemyLoop);
-			
-			// attempt to add the score to the high score list
-			if (typeof(window.localStorage) != undefined) {
-				// loop through stored scores
-				for (var i = 0; i < 10; ++i) {
-					// get the stored score
-					var value = window.localStorage.getItem("luminaScore"+i);
-					
-					// if no score is there yet, put this one there
-					if (value === null) {
-						window.localStorage.setItem("luminaScore"+i, score);
-						return;
-					}
-					
-					// if this score is higher than that one, put this one in and push the rest down
-					if (score > value) {
-						// push rest down
-						for (var ii = 9; ii > i; --ii) {
-							window.localStorage.setItem("luminaScore"+ii, window.localStorage.getItem("luminaScore"+(ii-1)));
-						}
-						// put this one here
-						window.localStorage.setItem("luminaScore"+i, score);
-						return;
-					}
-				}
-			}
 		}
 		
 		// if hovered over any enemy this frame
@@ -1195,7 +1165,7 @@ game.engine = (function(){
 				var l = lightSources[i];
 				
 				// create a radial gradient
-				var radial = ctx.createRadialGradient(-screenX + l.position.x, l.position.y, Math.max(l.radius, 0), -screenX + l.position.x, l.position.y, 0);
+				var radial = ctx.createRadialGradient(-screenX + l.position.x + l.offset.x, l.position.y + l.offset.y, Math.max(l.radius, 0), -screenX + l.position.x + l.offset.x, l.position.y + l.offset.y, 0);
 				radial.addColorStop(0, "rgba(0, 0, 0, 0)");
 				radial.addColorStop(0.2, "rgba(0, 0, 0, 0.075)");
 				radial.addColorStop(1, l.color);
@@ -1203,7 +1173,7 @@ game.engine = (function(){
 
 				// subtract the light from the main canvas
 				ctx.beginPath();
-				ctx.arc(-screenX + l.position.x, l.position.y, Math.max(l.radius, 0), 0, Math.PI*2, false);
+				ctx.arc(-screenX + l.position.x + l.offset.x, l.position.y + l.offset.y, Math.max(l.radius, 0), 0, Math.PI*2, false);
 				ctx.globalCompositeOperation = "destination-out";
 				ctx.fill();
 			}
@@ -1320,10 +1290,8 @@ game.engine = (function(){
 			ctx.globalAlpha = 0.7;
 			ctx.fillRect(0, 0, canvas.width, canvas.height);
 			ctx.fill();
-			fillText(ctx, "You died.", canvas.width/2, canvas.height/2 - 40, "30pt 'Bad Script'", "white");
-			fillText(ctx, "Score: " + score, canvas.width/2, canvas.height/2, "24pt 'Bad Script'", "white");
-			fillText(ctx, "Press H to view high scores", canvas.width/2, canvas.height/2 + 40, "24pt 'Bad Script'", "white");
-			fillText(ctx, "Press space to restart", canvas.width/2, canvas.height/2 + 80, "24pt 'Bad Script'", "white");
+			fillText(ctx, "You died.", canvas.width/2, canvas.height/2 - 20, "30pt 'Bad Script'", "white");
+			fillText(ctx, "Press space to respawn.", canvas.width/2, canvas.height/2 + 20, "24pt 'Bad Script'", "white");
 			ctx.restore();
 		}
 	}
@@ -1503,9 +1471,9 @@ game.engine = (function(){
 			// Loop waystones
 			for (var i = 0; i < waystones.length; ++i) {
 				// check if it's a matching waystoneType that isn't this one
-				if (waystones[i] != this && waystones[i].waystoneType === waystoneType) {
+				if (waystones[i] != this && waystones[i].waystoneType === this.waystoneType) {
 					this.pair = waystones[i];
-					return;
+					break;
 				}
 			}
 		}
@@ -1541,6 +1509,7 @@ game.engine = (function(){
 						this.increaseProgression();
 						this.active = true;
 						this.pair.active = true;
+						playStream("runeActivate.mp3", 0.5);
 						// force the pair's opacity scalar up so it'll glow once we teleport to it
 						this.pair.opacityScalar = 0.35;
 					}
@@ -1562,6 +1531,7 @@ game.engine = (function(){
 				if (this.active && this.pair.active && (keys[KEY.SPACE] || keys[KEY.W])) {
 					// Launch the player
 					player.velocity = Victor(0, -100);
+					playStream("teleport.mp3", 0.5);
 					
 					// Wait a second, then teleport the player to the matching waystone
 					setTimeout(function() {
@@ -1603,13 +1573,55 @@ game.engine = (function(){
 		GameObject.call(this);
 		
 		// Initial variables
-		this.position = new Victor(levelWidth()/2, TERRAIN_HEIGHT);
+		this.position = new Victor(levelWidth()/2 - towerImg.width/2, TERRAIN_HEIGHT - towerImg.height - 25);
+		this.bounds = new Victor(towerImg.width, towerImg.height);
+		this.sources = []; // all lights attached to the wizard tower
+		
+		// Create the tower's light sources //{
+		// Earth orb
+		this.sources.push(new LightSource(this, globalEarth(), 75, -1, false, true, 1));
+		this.sources[0].setOffset(new Victor(-380, 30));
+		lightSources.push(this.sources[0]);
+		
+		// Fire orb
+		this.sources.push(new LightSource(this, {r: 255, g:0, b:0}, 75, -1, false, true, 1));
+		this.sources[1].setOffset(new Victor(-18, 26));
+		lightSources.push(this.sources[1]);
+		
+		// Water orb
+		this.sources.push(new LightSource(this, globalWater(), 75, -1, false, true, 1));
+		this.sources[2].setOffset(new Victor(372, 35));
+		lightSources.push(this.sources[2]);
+		
+		// Door
+		this.sources.push(new LightSource(this, globalLight(), 255, -1, true, true, 0.75));
+		this.sources[3].setOffset(new Victor(-16, 300));
+		lightSources.push(this.sources[3]);
+		
+		// Bottom left window
+		this.sources.push(new LightSource(this, globalLight(), 125, -1, true, true, 0.6));
+		this.sources[4].setOffset(new Victor(-148, -10));
+		lightSources.push(this.sources[4]);
+		
+		// Bottom right window
+		this.sources.push(new LightSource(this, globalLight(), 125, -1, true, true, 0.6));
+		this.sources[5].setOffset(new Victor(106, -18));
+		lightSources.push(this.sources[5]);
+		
+		// Top middle window
+		this.sources.push(new LightSource(this, globalLight(), 125, -1, true, true, 0.6));
+		this.sources[6].setOffset(new Victor(-7, -204));
+		lightSources.push(this.sources[6]);
+		//}
+		
+		// Main tower update
+		this.update = function() {
+			this.draw();
+		}
 		
 		// Main tower draw
 		this.draw = function() {
-			ctx.save();
-				ctx.drawImage(towerImg, this.position.x, this.position.y);
-			ctx.restore();
+			offCtx.drawImage(towerImg, -screenX + this.position.x, this.position.y);
 		}
 	}
 	
@@ -1618,28 +1630,48 @@ game.engine = (function(){
 		MobileObject.call(this);
 	
 		/* VARIABLES */
-		this.image = playerImage;
+		// General variables
 		this.maxHealth = this.health = 100; 	// the player's health and max health
 		this.maxMana = this.mana = 100;			// the player's mana and max mana
+		this.expCurrent = 0;					// experience towards next level
+		this.expMax = 0;						// experience needed to level up
+		this.level = 0;							// current level
+		this.skillPoints = 0;					// available skill points
+		// Drawing
+		this.time = 0;							// used to control animation timing
+		this.currentImg = playerRun;			// the current image the player is drawing
+		this.frameWidth = this.currentImg.width/28; // width of 1 frame from the spritesheet
+		this.frameHeight = this.currentImg.height; // height of 1 frame from the spritesheet
+		this.offset = new Victor(); 			// player's image offset
+		// Physics & Movement
+		this.position = new Victor(				// starting player position, centered on level
+			levelWidth()/2,
+			TERRAIN_HEIGHT - this.bounds.y
+		);
+		this.bounds = new Victor(				// the player's bounding box width and height, position is top left
+			this.frameWidth,
+			this.frameHeight
+		);
 		this.velocity = new Victor(0, 0);		// player's velocity
 		this.onGround = true;					// used for updating physics
-		this.time = 0;							// used to control animation timing
-		this.offset = new Victor(); 			// player's image offset
+		// Spellcasting
 		this.spellType = "";					// the spell type of the player's current spell
 		this.spellElement = "";					// the element of the player's current spell
 		this.spellName = "";					// string naming the current spell
 		this.cooldown = 0;						// cooldown, determines whether a spell can be cast
 		this.damageTicks = 0;					// cooldown on damage
-		this.frameWidth = this.image.width; 	// width of 1 frame from the spritesheet
-		this.frameHeight = this.image.height;  	// height of 1 frame from the spritesheet
-		this.position = new Victor(				// starting player position, centered on level
-			levelWidth()/2,
-			TERRAIN_HEIGHT - this.bounds.y
-		);
-		this.bounds = new Victor(			// the player's bounding width and height
-			this.image.width,
-			this.image.height
-		);
+		
+		// FUNCTION: gives the player experience, attempting level ups
+		this.gainExperience = function(xp) {
+			this.expCurrent += xp;
+			
+			// Attempt a level up
+			if (this.expCurrent > this.expMax) {
+				this.expCurrent -= this.expMax;
+				++this.level;
+				++this.skillPoints;
+			}
+		}
 		
 		// FUNCTION: damage the player, does appropriate armor checks, etc
 		this.damage = function(power) {
@@ -1826,6 +1858,15 @@ game.engine = (function(){
 				this.velocity.x -= 0.75;
 			if (keys[KEY.D] && this.onGround)
 				this.velocity.x += 0.75;
+			
+			// Update bounding/physics/image variables based on player's state
+			// change image based on state
+			
+			// update frameWidth/height and bounds based on image
+			this.bounds = new Victor(				// the player's bounding box width and height, position is top left
+				this.frameWidth,
+				this.frameHeight
+			);
 				
 			// update the player's physics
 			this.updatePhysics.call(this);
@@ -1845,22 +1886,26 @@ game.engine = (function(){
 		
 		// FUNCTION: main player draw call
 		this.draw = function() {
-			// increment timing for animation
-			this.time = (this.time+0.75) % 28;
-					
 			offCtx.save();
-			// draw the player's actual image from its spritesheet
-			//offCtx.drawImage(this.image, this.frameWidth*Math.floor(this.time), 0, this.frameWidth, this.frameHeight, this.position.x + this.offset.x, this.position.y + this.offset.y, this.frameWidth, this.frameHeight);
-			offCtx.translate(-screenX + this.position.x + this.image.width/2, this.position.y + this.image.height/2);
-			offCtx.scale(this.xScale, 1);
-			offCtx.drawImage(this.image, -this.image.width/2 + this.offset.x, -this.image.height/2 + this.offset.y);
+				offCtx.translate(-screenX + this.position.x + this.frameWidth/2, this.position.y);
+				offCtx.scale(this.xScale, 1);
 				
-			// draw health above head
-			//offCtx.fillStyle = "red";
-			//offCtx.fillRect(this.position.x+10, this.position.y - 14, this.bounds.x-20, 5);
-			//offCtx.fillStyle = "green";
-			//offCtx.fillRect(this.position.x+10, this.position.y - 14, (this.bounds.x-20) * (this.health/this.maxHealth), 5);
-			
+				// increment timing for animation based on horizontal move speed
+				if (keys[KEY.A] || keys[KEY.D]) {
+					this.time += Math.max(0.5, (0.75*Math.abs(this.velocity.x)/7));
+					this.time = this.time % 28;
+					this.currentImg = playerRun;
+				}
+				else {
+					this.currentImg = playerToIdle;
+					this.time = 27 - (27 * Math.abs(this.velocity.x)/7);
+				}
+				
+				this.frameWidth = this.currentImg.width/28; 	// width of 1 frame from the spritesheet
+				this.frameHeight = this.currentImg.height;	// height of 1 frame from the spritesheet
+				
+				offCtx.drawImage(this.currentImg, this.frameWidth*Math.floor(this.time), 0, this.frameWidth, this.frameHeight, -this.frameWidth/2 + this.offset.x/2, this.offset.y, this.frameWidth, this.frameHeight);
+				
 			offCtx.restore();
 		}
 	}
@@ -2192,51 +2237,54 @@ game.engine = (function(){
 			// check if enemy is dead
 			if (this.health <= 0) {
 				// award points equal to its starting health
-				score += this.enemyType.health;
+				player.gainExperience(this.maxHealth);
 				
 				// delete this one
 				enemies.safeSplice(enemies.indexOf(this), 1);
 				return;
 			}
 			
-			// always move towards the player's other side
-			this.targetPos = player.position.clone();
-			this.targetPos.x += player.bounds.x * this.xScale;
-			
-			// bobbing for flying enemies, and target above the player
-			if (this.enemyType.AI === "flying") {
-				this.position.y += Math.sin(time/10);
-				this.targetPos.y -= this.bounds.y*4;
-				
-				// randomly shoot projectiles
-				if (Math.random() < 0.001 && currentGameState != GAME_STATE.PAUSED && onScreen(this))
-					projectiles.push(new Projectile(this.position.x, this.position.y, player, this.enemyType.projectile, true));
-			}
-				
 			// lose health from active DOTs
 			if (this.fireTicks > 0) {
 				--this.fireTicks;
 				this.health -= 0.05;
 			}
 			
-			// contact with player
-			if (this.overlaps(player) && player.damageTicks <= 0) {
-				player.damage(this.enemyType.strength);
-				player.jump(this.enemyType.strength, 1);
-			}
-			
-			// if it's a flying enemy, it uses true homing
-			if (this.enemyType.AI === "flying")
-				this.velocity = this.targetPos.clone().subtract(this.position).norm().multiply(Victor(2, 2.5));
-			// otherwise, only set x velocity
-			else
-				// doesn't move if off ground
-				if (this.onGround)
-					this.velocity.x = Math.sign(this.targetPos.clone().subtract(this.position).x);
+			// Enemies stop most of their checks and update if they're far enough off screen
+			if (Math.abs(player.position.x - this.position.x) < canvas.width*1.5) {
+				// always move towards the player's other side
+				this.targetPos = player.position.clone();
+				this.targetPos.x += player.bounds.x * this.xScale;
+				
+				// bobbing for flying enemies, and target above the player
+				if (this.enemyType.AI === "flying") {
+					this.position.y += Math.sin(time/10);
+					this.targetPos.y -= this.bounds.y*4;
+					
+					// randomly shoot projectiles
+					if (Math.random() < 0.001 && currentGameState != GAME_STATE.PAUSED && onScreen(this))
+						projectiles.push(new Projectile(this.position.x, this.position.y, player, this.enemyType.projectile, true));
+				}
+				
+				// contact with player
+				if (this.overlaps(player) && player.damageTicks <= 0) {
+					player.damage(this.enemyType.strength);
+					player.jump(this.enemyType.strength, 1);
+				}
+				
+				// if it's a flying enemy, it uses true homing
+				if (this.enemyType.AI === "flying")
+					this.velocity = this.targetPos.clone().subtract(this.position).norm().multiply(Victor(2, 2.5));
+				// otherwise, only set x velocity
 				else
-					this.velocity.x = 0;
-			
-			this.updatePhysics();
+					// doesn't move if off ground
+					if (this.onGround)
+						this.velocity.x = Math.sign(this.targetPos.clone().subtract(this.position).x);
+					else
+						this.velocity.x = 0;
+				
+				this.updatePhysics();
+			}
 			
 			// DRAW: draw the enemy if it's on screen
 			if (onScreen(this))
@@ -2392,6 +2440,12 @@ game.engine = (function(){
 		this.baseColor = color;					// base color of the light
 		this.alpha = alpha;						// light's alpha (transparency)
 		this.color = colorString(this.baseColor, this.alpha); // the true current color of the source's light, passed as rgb object literal for use in draw call
+		this.offset = new Victor();				// the offset of a light source; displays at root's position + offset
+		
+		// Changes the light source's offset
+		this.setOffset = function(vector) {
+			this.offset = vector;
+		}
 		
 		// Update light source system
 		this.update = function() {
@@ -2437,22 +2491,21 @@ game.engine = (function(){
 		//== Draw the light source
 		// This is only ever called as a post-process
 		this.draw = function() {
-			// draw the light on the canvas
-			ctx.save();
-				// create a radial gradient of the light's color
-				var radial = ctx.createRadialGradient(-screenX + this.position.x, this.position.y, Math.max(this.radius, 0), -screenX + this.position.x, this.position.y, 0);
-				radial.addColorStop(0, colorString(color, 0));
-				radial.addColorStop(0.2, colorString(color, 0.05*alpha));
-				radial.addColorStop(1, colorString(color, 0.3*alpha));
-				ctx.fillStyle = radial;
-				// draw the gradient
-				ctx.beginPath();
-				ctx.arc(-screenX + this.position.x, this.position.y, Math.max(this.radius, 0), 0, Math.PI*2, false);
-				ctx.globalCompositeOperation = "lighter";
-				ctx.fill();
-				ctx.globalCompositeOperation = "overlay";
-				ctx.fill();
-			ctx.restore();
+			// get a vector of the light's adjusted screen position
+			var adjPos = new Victor(-screenX + this.position.x + this.offset.x, this.position.y + this.offset.y);
+			// create a radial gradient of the light's color
+			var radial = ctx.createRadialGradient(adjPos.x, adjPos.y, Math.max(this.radius, 0), adjPos.x, adjPos.y, 0);
+			radial.addColorStop(0, colorString(color, 0));
+			radial.addColorStop(0.2, colorString(color, 0.05*alpha));
+			radial.addColorStop(1, colorString(color, 0.3*alpha));
+			ctx.fillStyle = radial;
+			// draw the gradient
+			ctx.beginPath();
+			ctx.arc(adjPos.x, adjPos.y, Math.max(this.radius, 0), 0, Math.PI*2, false);
+			ctx.globalCompositeOperation = "lighter";
+			ctx.fill();
+			ctx.globalCompositeOperation = "overlay";
+			ctx.fill();
 		}
 	}
 	
@@ -2484,7 +2537,7 @@ game.engine = (function(){
 		// Prevents accidental ticking resumes
 		if (currentGameState === GAME_STATE.PAUSED) {
 			currentGameState = GAME_STATE.IDLE;
-			//bgAudio.play();
+			bgAudio.play();
 			
 			// forcibly end animation loop in case it's running
 			// only end the loop if the player is alive
@@ -2497,7 +2550,7 @@ game.engine = (function(){
 	}
 	
 	// FUNCTION: do things based on key presses
-	function keyPress(e) {
+	function keyPress(e, simulated) {
 		// initialize value at keycode to false on first press
 		if (keys[e.keyCode] === undefined)
 			keys[e.keyCode] = false;
@@ -2506,7 +2559,7 @@ game.engine = (function(){
 		if (player.cooldown <= 0)
 			player.cast(e.keyCode);
 		
-		// spacebar - jump!
+		// spacebar
 		if (e.keyCode === KEY.SPACE || e.keyCode === KEY.W) {
 			if (player)
 				player.jump(8, 1);
@@ -2523,44 +2576,17 @@ game.engine = (function(){
 			else if (currentGameState === GAME_STATE.IDLE)
 				pauseGame();
 		}
-		
-		// h - view high scores if on main or death screen
-		if (e.keyCode === KEY.H) {
-			// return to home screen after viewing high scores
-			if (currentGameState === GAME_STATE.HIGHSCORE) {
-				windowManager.deactivateUI("all");
-				windowManager.activateUI("titleScreen");
-				currentGameState = GAME_STATE.START;
-			}
-			else
-			if (currentGameState === GAME_STATE.DEAD || currentGameState === GAME_STATE.START) {
-				currentGameState = GAME_STATE.HIGHSCORE;
 				
-				// load in the scores from local storage
-				highScores = [];
-				if (typeof(window.localStorage) != undefined) {
-					for (var i = 0; i < 10; ++i) {
-						// Grab the key if it exists
-						if (window.localStorage.getItem("luminaScore"+i)) {
-							highScores[i] = window.localStorage.getItem("luminaScore"+i);
-						}
-						// Otherwise, just push 0
-						else {
-							highScores[i] = 0;
-						}
-					}
-				}
-			}
-		}
-		
 		// set the keycode to true
 		// we do this last so we can check if this is the first tick it's pressed
-		keys[e.keyCode] = true;
+		if (!simulated)
+			keys[e.keyCode] = true;
 	}
 	
 	// FUNCTION: do things based on key releases
-	function keyRelease(e) {
-		keys[e.keyCode] = false;
+	function keyRelease(e, simulated) {
+		if (!simulated)
+			keys[e.keyCode] = false;
 		
 		if (e.keyCode === KEY.SPACE) {
 			// prevent spacebar page scrolling
@@ -2569,6 +2595,8 @@ game.engine = (function(){
 			// if the player has died, restart the game
 			if (currentGameState === GAME_STATE.DEAD) {
 				currentGameState = GAME_STATE.START;
+				windowManager.deactivateUI("all");
+				windowManager.toggleUI("titleScreen");
 			}
 			// if we're in between levels, move on to the next one
 			if (currentGameState === GAME_STATE.BETWEEN) {

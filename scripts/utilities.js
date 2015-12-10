@@ -1,6 +1,7 @@
 "use strict";
 
 var KEY = {					// "enum" equating keycodes to names (e.g. keycode 32 = spacebar)
+	TAB: 9,
 	SPACE: 32,
 	LEFT: 37,
 	UP: 38,

@@ -17,6 +17,3 @@ window.onblur = function() {
 window.onfocus = function() {
 	game.engine.resumeGame();
 };
-
-// callback for button presses
-window.addEventListener("keydown", game.engine.keyPress);
