@@ -22,7 +22,7 @@ game.windowManager = (function(){
 		canvas = document.querySelector("canvas");	
 		ctx = canvas.getContext("2d");				
 		
-		canvas.addEventListener("click", checkMouse);		// click event to check mouse on UI
+		canvas.addEventListener("mousedown", checkMouse);	// click event to check mouse on UI
 		canvas.addEventListener("touchstart", checkMouse);	// tap event to check touch on UI
 		
 		updateAndDraw();
@@ -41,6 +41,7 @@ game.windowManager = (function(){
 		var elem;					// UI element
 		var but;					// button
 		var clicked = false;
+		
 		// check if any UI elements were clicked
 		for(var i=0; i < uiElements.length; i++){
 			elem = uiElements[i];
@@ -53,9 +54,10 @@ game.windowManager = (function(){
 					// attempt to call the element's click event if it has one (meaning it's a button)
 					if (but.onClick != undefined && mouse.position.x >= elem.position.x + but.offset.x && mouse.position.x <= elem.position.x + but.offset.x + but.bounds.x && mouse.position.y >= elem.position.y + but.offset.y && mouse.position.y <= elem.position.y + but.offset.y + but.bounds.y && but.isActive){
 						but.onClick();
-						return clicked;
+						break;
 					}
 				}
+				break;
 			}
 		}
 		//console.log(clicked);

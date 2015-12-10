@@ -53,7 +53,7 @@ game.engine = (function(){
 	var currentGameState = GAME_STATE.START; // what is currently happening in the game
 	var currentLevel = 0;		// what level the player is on
 	var keys = [];				// array to store pressed keys
-	var highScores = [];		// array of high scores when they're loaded in
+	var experience = 0;			// increases like score, but can be spent for upgrades
 	var postProcesses = [];		// an array that stores callbacks to object draws that should be called after shading is applied
 	
 	//== Progression
@@ -461,9 +461,6 @@ game.engine = (function(){
 			mouseDown = true;
 			e.preventDefault();
 			
-			// check for mouse presses on the UI
-			uiClicked = game.windowManager.checkMouse(e);
-			
 			// run game actions if the UI was not clicked
 			if(!uiClicked){				
 				// if the player is dead, restart the game
@@ -488,9 +485,6 @@ game.engine = (function(){
 		canvas.addEventListener("touchstart", function(e) {
 			mouseDown = true;
 			e.preventDefault();
-			
-			// check for mouse presses on the UI
-			uiClicked = game.windowManager.checkMouse(e);
 			
 			// run game actions if the UI was not clicked
 			if(!uiClicked){
@@ -538,6 +532,7 @@ game.engine = (function(){
 		grad.addColorStop(0, "rgb(0, 0, 50)");
 		grad.addColorStop(1, "rgb(10, 10, 10)");
 		windowManager.modifyUI("instructionScreen", "fill", {color: grad});
+		windowManager.activateUIPausing("instructionScreen");
 		// instruction text
 		windowManager.makeText("instructionScreen", "title", 50, 50, "default", "default", "Instructions", "40pt 'Bad Script'", "rgb(250, 255, 195)");
 		windowManager.makeText("instructionScreen", "instructions", 65, 130, canvas.width - 50, "default", 
@@ -595,8 +590,58 @@ game.engine = (function(){
 		windowManager.modifyBar("enemyHUD", "enemyHealth", "fill", {foreColor: "#080", backColor: "#880000"});
 		//}
 		
-		// BEGIN main game tick
-		update();
+		//== Register Pause Screen ==//{
+		windowManager.makeUI("pauseScreen", 0, 0, canvas.width, canvas.height);
+		var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+		grad.addColorStop(0, "rgb(0, 0, 50)");
+		grad.addColorStop(1, "rgb(10, 10, 10)");
+		windowManager.modifyUI("pauseScreen", "fill", {color: grad});
+		windowManager.activateUIPausing("pauseScreen");
+		windowManager.makeText("pauseScreen", "pause", 50, 50, "default", "default", "Paused", "40pt 'Bad Script'", "rgb(250, 255, 195)");
+		// continue button
+		windowManager.makeButton("pauseScreen", "continueButton", 60, 5*canvas.height/6, canvas.width/8, canvas.height/12, function() {game.engine.resumeGame();});
+		windowManager.modifyButton("pauseScreen", "continueButton", "fill", {color: "#3C3C3C"});
+		windowManager.modifyButton("pauseScreen", "continueButton", "border", {color: "#222", width: 4});
+		windowManager.modifyButton("pauseScreen", "continueButton", "text", {string: "Continue", css: "24pt 'Bad Script'", color: "rgb(250, 255, 195)"});
+		// quit button
+		windowManager.makeButton("pauseScreen", "quitButton", 250, 5*canvas.height/6, canvas.width/10, canvas.height/12, function() {
+			windowManager.deactivateUI("all");
+			windowManager.activateUI("titleScreen");
+			bgAudio.currentTime = 0;
+			bgAudio.play();
+			currentGameState = GAME_STATE.START;
+		});
+		windowManager.modifyButton("pauseScreen", "quitButton", "fill", {color: "#3C3C3C"});
+		windowManager.modifyButton("pauseScreen", "quitButton", "border", {color: "#222", width: 4});
+		windowManager.modifyButton("pauseScreen", "quitButton", "text", {string: "Quit", css: "24pt 'Bad Script'", color: "rgb(250, 255, 195)"}); 
+		//}
+		
+		//== Register Death Screen ==//{
+		windowManager.makeUI("deathScreen", 0, 0, canvas.width, canvas.height);
+		var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+		grad.addColorStop(0, "rgb(0, 0, 50)");
+		grad.addColorStop(1, "rgb(10, 10, 10)");
+		windowManager.modifyUI("deathScreen", "fill", {color: grad});
+		windowManager.activateUIPausing("deathScreen");
+		windowManager.makeText("deathScreen", "dead", 50, 50, canvas.width / 3, "default", "You died...", "40pt 'Bad Script'", "rgb(250, 255, 195)");
+		// new game button
+		windowManager.makeButton("deathScreen", "restartButton", 60, 5*canvas.height/6, canvas.width/8, canvas.height/12, function() {windowManager.deactivateUI("deathScreen"); game.engine.setupGame();});
+		windowManager.modifyButton("deathScreen", "restartButton", "fill", {color: "#3C3C3C"});
+		windowManager.modifyButton("deathScreen", "restartButton", "border", {color: "#222", width: 4});
+		windowManager.modifyButton("deathScreen", "restartButton", "text", {string: "New game", css: "24pt 'Bad Script'", color: "rgb(250, 255, 195)"});
+		// quit button
+		windowManager.makeButton("deathScreen", "quitButton", 250, 5*canvas.height/6, canvas.width/10, canvas.height/12, function() {
+			windowManager.deactivateUI("all");
+			windowManager.activateUI("titleScreen");
+			currentGameState = GAME_STATE.START;
+		});
+		windowManager.modifyButton("deathScreen", "quitButton", "fill", {color: "#3C3C3C"});
+		windowManager.modifyButton("deathScreen", "quitButton", "border", {color: "#222", width: 4});
+		windowManager.modifyButton("deathScreen", "quitButton", "text", {string: "Quit", css: "24pt 'Bad Script'", color: "rgb(250, 255, 195)"}); 
+		//}
+		
+		// BEGIN main loop
+		loop();
 	}
 	
 	// Setup a new game
@@ -754,8 +799,7 @@ game.engine = (function(){
 		}, 1700);
 		
 		//== Prepare UI ==//
-		windowManager.activateUI("controlsHUD");
-		windowManager.activateUI("spellHUD");
+		activateHUD();
 		
 		// Begin running!
 		currentGameState = GAME_STATE.IDLE;
@@ -978,22 +1022,25 @@ game.engine = (function(){
 		return (o.position.x < levelWidth() + 200 && o.position.x + o.bounds.x > -200 && o.position.y < canvas.height + 200 && o.position.y + o.bounds.y > -200);
 	}
 	
-	// main game tick
+	// main loop - always runs
+	function loop() {
+		animationID = requestAnimationFrame(loop);
+		
+		if (currentGameState === GAME_STATE.IDLE)
+			update();
+		
+		game.windowManager.updateAndDraw([]);
+	}
+	
+	// main game tick - not called if paused
 	function update() {
-		// scedule next draw frame and reset/calculate control variables
-		animationID = requestAnimationFrame(update);
+		// reset/calculate control variables
 		postProcesses = [];
 		dt = calculateDeltaTime();
 		++time;
 		
 		// start game if on start screen and space or start is being pressed
 		if (currentGameState === GAME_STATE.START) {
-			windowManager.updateAndDraw({});
-			return;
-		}
-		 	
-	 	// if paused, bail out of loop
-		if (currentGameState === GAME_STATE.PAUSED) {
 			return;
 		}
 		
@@ -1073,6 +1120,9 @@ game.engine = (function(){
 		
 		// if the player has died, send game to death screen
 		if (player.health <= 0 && currentGameState != GAME_STATE.DEAD) {
+			// activate death screen
+			windowManager.activateUI("deathScreen");
+			
 			// Update game state
 			currentGameState = GAME_STATE.DEAD;
 			
@@ -1217,12 +1267,10 @@ game.engine = (function(){
 		ctx.fillRect(0, 0, canvas.width, canvas.height);
 		
 		ctx.restore();
-		
+	
 		//== Draw HUDs/interfaces ==//
 		ctx.globalCompositeOperation = "source-over";
-		if (currentGameState != GAME_STATE.DEAD) {
-			game.windowManager.updateAndDraw([]);
-			
+		if (currentGameState != GAME_STATE.DEAD && currentGameState != GAME_STATE.PAUSED) {
 			// Draw health and mana orb HUD elements
 			ctx.save();
 			var orbWidth = 125;
@@ -1281,17 +1329,6 @@ game.engine = (function(){
 				ctx.fill();
 				ctx.closePath();
 				
-			ctx.restore();
-		}
-		// draw death screen if player has died
-		else {
-			ctx.save();
-			ctx.fillStyle = "black";
-			ctx.globalAlpha = 0.7;
-			ctx.fillRect(0, 0, canvas.width, canvas.height);
-			ctx.fill();
-			fillText(ctx, "You died.", canvas.width/2, canvas.height/2 - 20, "30pt 'Bad Script'", "white");
-			fillText(ctx, "Press space to respawn.", canvas.width/2, canvas.height/2 + 20, "24pt 'Bad Script'", "white");
 			ctx.restore();
 		}
 	}
@@ -2517,17 +2554,11 @@ game.engine = (function(){
 			currentGameState = GAME_STATE.PAUSED;
 			bgAudio.pause();
 			
-			// stop the animation loop if the player is alive
-			if (inControl())
-				cancelAnimationFrame(animationID);
-			
 			// draw the pause screen
-			ctx.save();
-			ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-			ctx.fillRect(0, 0, canvas.width, canvas.height);
-			fillText(ctx, "Paused", canvas.width/2, canvas.height/2, "30pt Bad Script", "white");
-			fillText(ctx, "Press P to unpause", canvas.width/2, canvas.height/2+40, "24pt Bad Script", "white");
-			ctx.restore();
+			deactivateHUD();
+			windowManager.activateUI("pauseScreen");
+			// force one tick to update paused behaviors
+			update();
 		}
 	}
 	
@@ -2539,14 +2570,22 @@ game.engine = (function(){
 			currentGameState = GAME_STATE.IDLE;
 			bgAudio.play();
 			
-			// forcibly end animation loop in case it's running
-			// only end the loop if the player is alive
-			if (inControl()) {
-				cancelAnimationFrame(animationID);
-				// resume ticking
-				update();
-			}
+			// deactivate pause menu
+			activateHUD();
+			windowManager.deactivateUI("pauseScreen");
 		}
+	}
+	
+	// FUNCTION: activate game HUD
+	function activateHUD() {
+		windowManager.activateUI("controlsHUD");
+		windowManager.activateUI("spellHUD");
+	}
+	
+	// FUNCTION: deactivate game HUD
+	function deactivateHUD() {
+		windowManager.deactivateUI("controlsHUD");
+		windowManager.deactivateUI("spellHUD");
 	}
 	
 	// FUNCTION: do things based on key presses
@@ -2576,7 +2615,7 @@ game.engine = (function(){
 			else if (currentGameState === GAME_STATE.IDLE)
 				pauseGame();
 		}
-				
+		
 		// set the keycode to true
 		// we do this last so we can check if this is the first tick it's pressed
 		if (!simulated)
