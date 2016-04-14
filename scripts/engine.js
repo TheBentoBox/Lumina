@@ -523,35 +523,43 @@ game.engine = (function(){
 		
 		//== Register Title Screen UI ==//{
 		windowManager.makeUI("titleScreen", 0, 0, canvas.width, canvas.height);
-		var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-		grad.addColorStop(0, "rgb(0, 0, 50)");
-		grad.addColorStop(1, "rgb(10, 10, 10)");
-		windowManager.modifyUI("titleScreen", "fill", {color: grad});
+		windowManager.makeImage("titleScreen", "background5", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[5]);
+		windowManager.makeImage("titleScreen", "background4", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[4]);
+		windowManager.makeImage("titleScreen", "background3", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[3]);
+		windowManager.makeImage("titleScreen", "background2", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[2]);
+		windowManager.makeImage("titleScreen", "background1", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[1]);
+		windowManager.makeImage("titleScreen", "background0", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[0]);
+		windowManager.makeButton("titleScreen", "overlay", 0, 0, canvas.width, canvas.height, undefined);
+		windowManager.modifyButton("titleScreen", "overlay", "fill", {color: "rgba(0, 0, 0, 0.6)"});
 		// start game button
-		windowManager.makeButton("titleScreen", "startButton", 60, 5*canvas.height/6, canvas.width/8, canvas.height/12, function() {game.engine.setupGame();});
+		windowManager.makeButton("titleScreen", "startButton", canvas.width/2 - canvas.width/10, canvas.height/2 + 40, canvas.width/5, canvas.height/12, function() {game.engine.setupGame();});
 		windowManager.modifyButton("titleScreen", "startButton", "fill", {color: "#3C3C3C"});
 		windowManager.modifyButton("titleScreen", "startButton", "border", {color: "#222", width: 4});
 		windowManager.modifyButton("titleScreen", "startButton", "text", {string: "Start", css: "24pt 'Bad Script'", color: "rgb(250, 255, 195)"});
 		// instructions button
-		windowManager.makeButton("titleScreen", "instructionButton", 250, 5*canvas.height/6, canvas.width/5, canvas.height/12, function() {windowManager.toggleUI("titleScreen"); windowManager.toggleUI("instructionScreen");});
+		windowManager.makeButton("titleScreen", "instructionButton", canvas.width/2 - canvas.width/10, 2*canvas.height/3, canvas.width/5, canvas.height/12, function() {windowManager.toggleUI("titleScreen"); windowManager.toggleUI("instructionScreen");});
 		windowManager.modifyButton("titleScreen", "instructionButton", "fill", {color: "#3C3C3C"});
 		windowManager.modifyButton("titleScreen", "instructionButton", "border", {color: "#222", width: 4});
 		windowManager.modifyButton("titleScreen", "instructionButton", "text", {string: "Instructions", css: "24pt 'Bad Script'", color: "rgb(250, 255, 195)"});
 		// game title
-		windowManager.makeText("titleScreen", "title", 50, 50, "default", "default", "Lumina", "40pt 'Bad Script'", "rgb(250, 255, 195)");
+		windowManager.makeText("titleScreen", "title", canvas.width/2 - 75, 200, "default", "default", "Lumina", "40pt 'Bad Script'", "rgb(250, 255, 195)");
 		windowManager.toggleUI("titleScreen");
 		//}
 		
 		//== Register Instructions Screen ==//{
 		windowManager.makeUI("instructionScreen", 0, 0, canvas.width, canvas.height);
-		var grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-		grad.addColorStop(0, "rgb(0, 0, 50)");
-		grad.addColorStop(1, "rgb(10, 10, 10)");
-		windowManager.modifyUI("instructionScreen", "fill", {color: grad});
+		windowManager.makeImage("instructionScreen", "background5", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[5]);
+		windowManager.makeImage("instructionScreen", "background4", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[4]);
+		windowManager.makeImage("instructionScreen", "background3", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[3]);
+		windowManager.makeImage("instructionScreen", "background2", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[2]);
+		windowManager.makeImage("instructionScreen", "background1", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[1]);
+		windowManager.makeImage("instructionScreen", "background0", 0, 0, canvas.width, canvas.height, BIOME.FOREST.environmentImgs[0]);
+		windowManager.makeButton("instructionScreen", "overlay", 0, 0, canvas.width, canvas.height, undefined);
+		windowManager.modifyButton("instructionScreen", "overlay", "fill", {color: "rgba(0, 0, 0, 0.6)"});
 		windowManager.activateUIPausing("instructionScreen");
 		// instruction text
-		windowManager.makeText("instructionScreen", "title", 50, 50, "default", "default", "Instructions", "40pt 'Bad Script'", "rgb(250, 255, 195)");
-		windowManager.makeText("instructionScreen", "instructions", 65, 130, canvas.width - 50, "default", 
+		windowManager.makeText("instructionScreen", "title", canvas.width/2 - 125, 50, "default", "default", "Instructions", "40pt 'Bad Script'", "rgb(250, 255, 195)");
+		windowManager.makeText("instructionScreen", "instructions", 65, 200, canvas.width - 50, "default", 
 			"A/D:    Move left/right%n" +
 			"1/2/3:   Cast spell element%n" +
 			"Space/W:  Jump%n" +
@@ -559,12 +567,12 @@ game.engine = (function(){
 			"LMB:    Launch spell%n" +
 			"Bolt:    A ranged projectile cast toward the mouse%n" +
 			"Rune:    A trap on the ground that triggers when an enemy steps on it%n" +
-			"Grenade:  A lobbed projectile that bounces and explodes on enemy contact or at the end of its arc%n", 
+			"Grenade:  A lobbed projectile that bounces and explodes on enemy contact or at the end of its arc", 
 			"20pt 'Bad Script'", "rgb(250, 255, 195)"
 		);
 		windowManager.modifyText("instructionScreen", "instructions", "padding", {top: 0, right: 0, bottom: 0, left: 0, line: 20});
 		// back button
-		windowManager.makeButton("instructionScreen", "backButton", canvas.width * 7/8 - 50, 5*canvas.height/6, canvas.width/8, canvas.height/12, function() {windowManager.toggleUI("instructionScreen"); windowManager.toggleUI("titleScreen");});
+		windowManager.makeButton("instructionScreen", "backButton", canvas.width/2 - canvas.width/10, 5*canvas.height/6, canvas.width/5, canvas.height/12, function() {windowManager.toggleUI("instructionScreen"); windowManager.toggleUI("titleScreen");});
 		windowManager.modifyButton("instructionScreen", "backButton", "fill", {color: "#3C3C3C"});
 		windowManager.modifyButton("instructionScreen", "backButton", "border", {color: "#222", width: 4});
 		windowManager.modifyButton("instructionScreen", "backButton", "text", {string: "Back", css: "24pt 'Bad Script'", color: "rgb(250, 255, 195)"});
@@ -892,77 +900,77 @@ game.engine = (function(){
 		//}
 			
 		//== Player
-		playerRun = preloadImage("assets/playerRun.png");
-		playerToIdle = preloadImage("assets/playerToIdle.png");
+		playerRun = preloadImageNoCanvas("assets/playerRun.png");
+		playerToIdle = preloadImageNoCanvas("assets/playerToIdle.png");
 			
 		//== Biome Assets //{
 		// Clearing
-		BIOME.CLEARING.environmentImgs[1] = preloadImage("assets/SceneryClearing1.png");
-		BIOME.CLEARING.environmentImgs[2] = preloadImage("assets/SceneryClearing2.png");
-		BIOME.CLEARING.environmentImgs[4] = preloadImage("assets/SceneryClearing4.png");
-		BIOME.CLEARING.environmentImgs[5] = preloadImage("assets/SceneryClearing5.png");
+		BIOME.CLEARING.environmentImgs[1] = preloadImageNoCanvas("assets/SceneryClearing1.png");
+		BIOME.CLEARING.environmentImgs[2] = preloadImageNoCanvas("assets/SceneryClearing2.png");
+		BIOME.CLEARING.environmentImgs[4] = preloadImageNoCanvas("assets/SceneryClearing4.png");
+		BIOME.CLEARING.environmentImgs[5] = preloadImageNoCanvas("assets/SceneryClearing5.png");
 		// Forest
-		BIOME.FOREST.environmentImgs[0] = preloadImage("assets/SceneryForest0.png");
-		BIOME.FOREST.environmentImgs[1] = preloadImage("assets/SceneryForest1.png");
-		BIOME.FOREST.environmentImgs[2] = preloadImage("assets/SceneryForest2.png");
-		BIOME.FOREST.environmentImgs[3] = preloadImage("assets/SceneryForest3.png");
-		BIOME.FOREST.environmentImgs[4] = preloadImage("assets/SceneryForest4.png");
-		BIOME.FOREST.environmentImgs[5] = preloadImage("assets/SceneryForest5.png");
+		BIOME.FOREST.environmentImgs[0] = preloadImageNoCanvas("assets/SceneryForest0.png");
+		BIOME.FOREST.environmentImgs[1] = preloadImageNoCanvas("assets/SceneryForest1.png");
+		BIOME.FOREST.environmentImgs[2] = preloadImageNoCanvas("assets/SceneryForest2.png");
+		BIOME.FOREST.environmentImgs[3] = preloadImageNoCanvas("assets/SceneryForest3.png");
+		BIOME.FOREST.environmentImgs[4] = preloadImageNoCanvas("assets/SceneryForest4.png");
+		BIOME.FOREST.environmentImgs[5] = preloadImageNoCanvas("assets/SceneryForest5.png");
 		// Bog
-		BIOME.BOG.environmentImgs[0] = preloadImage("assets/SceneryBog0.png");
-		BIOME.BOG.environmentImgs[1] = preloadImage("assets/SceneryBog1.png");
-		BIOME.BOG.environmentImgs[2] = preloadImage("assets/SceneryBog2.png");
-		BIOME.BOG.environmentImgs[3] = preloadImage("assets/SceneryBog3.png");
-		BIOME.BOG.environmentImgs[4] = preloadImage("assets/SceneryBog4.png");
-		BIOME.BOG.environmentImgs[5] = preloadImage("assets/SceneryBog5.png");
+		BIOME.BOG.environmentImgs[0] = preloadImageNoCanvas("assets/SceneryBog0.png");
+		BIOME.BOG.environmentImgs[1] = preloadImageNoCanvas("assets/SceneryBog1.png");
+		BIOME.BOG.environmentImgs[2] = preloadImageNoCanvas("assets/SceneryBog2.png");
+		BIOME.BOG.environmentImgs[3] = preloadImageNoCanvas("assets/SceneryBog3.png");
+		BIOME.BOG.environmentImgs[4] = preloadImageNoCanvas("assets/SceneryBog4.png");
+		BIOME.BOG.environmentImgs[5] = preloadImageNoCanvas("assets/SceneryBog5.png");
 		// Cave
-		BIOME.CAVE.environmentImgs[0] = preloadImage("assets/SceneryCave0.png");
-		BIOME.CAVE.environmentImgs[1] = preloadImage("assets/SceneryCave1.png");
-		BIOME.CAVE.environmentImgs[2] = preloadImage("assets/SceneryCave2.png");
-		BIOME.CAVE.environmentImgs[3] = preloadImage("assets/SceneryCave3.png");
-		BIOME.CAVE.environmentImgs[4] = preloadImage("assets/SceneryCave4.png");
-		BIOME.CAVE.environmentImgs[5] = preloadImage("assets/SceneryCave5.png");
+		BIOME.CAVE.environmentImgs[0] = preloadImageNoCanvas("assets/SceneryCave0.png");
+		BIOME.CAVE.environmentImgs[1] = preloadImageNoCanvas("assets/SceneryCave1.png");
+		BIOME.CAVE.environmentImgs[2] = preloadImageNoCanvas("assets/SceneryCave2.png");
+		BIOME.CAVE.environmentImgs[3] = preloadImageNoCanvas("assets/SceneryCave3.png");
+		BIOME.CAVE.environmentImgs[4] = preloadImageNoCanvas("assets/SceneryCave4.png");
+		BIOME.CAVE.environmentImgs[5] = preloadImageNoCanvas("assets/SceneryCave5.png");
 		// Mountain
-		BIOME.MOUNTAIN.environmentImgs[0] = preloadImage("assets/SceneryMountain0.png");
-		BIOME.MOUNTAIN.environmentImgs[1] = preloadImage("assets/SceneryMountain1.png");
-		BIOME.MOUNTAIN.environmentImgs[2] = preloadImage("assets/SceneryMountain2.png");
-		BIOME.MOUNTAIN.environmentImgs[3] = preloadImage("assets/SceneryMountain3.png");
-		BIOME.MOUNTAIN.environmentImgs[4] = preloadImage("assets/SceneryMountain4.png");
-		BIOME.MOUNTAIN.environmentImgs[5] = preloadImage("assets/SceneryMountain5.png");
+		BIOME.MOUNTAIN.environmentImgs[0] = preloadImageNoCanvas("assets/SceneryMountain0.png");
+		BIOME.MOUNTAIN.environmentImgs[1] = preloadImageNoCanvas("assets/SceneryMountain1.png");
+		BIOME.MOUNTAIN.environmentImgs[2] = preloadImageNoCanvas("assets/SceneryMountain2.png");
+		BIOME.MOUNTAIN.environmentImgs[3] = preloadImageNoCanvas("assets/SceneryMountain3.png");
+		BIOME.MOUNTAIN.environmentImgs[4] = preloadImageNoCanvas("assets/SceneryMountain4.png");
+		BIOME.MOUNTAIN.environmentImgs[5] = preloadImageNoCanvas("assets/SceneryMountain5.png");
 		//}
 		
 		//== Tower
-		towerImg = preloadImage("assets/towerExterior.png");
-		towerInterior = preloadImage("assets/towerInterior.png");
+		towerImg 		= preloadImageNoCanvas("assets/towerExterior.png");
+		towerInterior	= preloadImageNoCanvas("assets/towerInterior.png");
 		
 		//== Game Objects
 		OBJECT.GLOWSHROOM.img = preloadImage("assets/GlowbitMushrooms.png");
 		
 		//== HUD assets //{
-		boltRune 	   = preloadImageNoCanvas("assets/boltRune.png");
-		runeRune 	   = preloadImageNoCanvas("assets/runeRune.png");
-		grenadeRune    = preloadImageNoCanvas("assets/grenadeRune.png");
-		fireRune 	   = preloadImageNoCanvas("assets/fireRune.png");
-		waterRune 	   = preloadImageNoCanvas("assets/waterRune.png");
-		earthRune 	   = preloadImageNoCanvas("assets/earthRune.png");
-		emptyRune 	   = preloadImageNoCanvas("assets/emptyRune.png");
+		boltRune 	   	= preloadImageNoCanvas("assets/boltRune.png");
+		runeRune 	   	= preloadImageNoCanvas("assets/runeRune.png");
+		grenadeRune   = preloadImageNoCanvas("assets/grenadeRune.png");
+		fireRune 	   	= preloadImageNoCanvas("assets/fireRune.png");
+		waterRune 	   	= preloadImageNoCanvas("assets/waterRune.png");
+		earthRune 	   	= preloadImageNoCanvas("assets/earthRune.png");
+		emptyRune 	= preloadImageNoCanvas("assets/emptyRune.png");
 		//}
 		
 		//== Enemies //{
-		ENEMY_TYPE.RAT.img 		= preloadImage("assets/ratRun.png");
-		ENEMY_TYPE.RAT.profile 	= preloadImageNoCanvas("assets/ratProfile.png");
-		ENEMY_TYPE.BAT.img 		= preloadImage("assets/batRun.png");
-		ENEMY_TYPE.BAT.profile 	= preloadImageNoCanvas("assets/batProfile.png");
-		ENEMY_TYPE.GATOR.img 	= preloadImage("assets/gatorRun.png");
+		ENEMY_TYPE.RAT.img 			= preloadImage("assets/ratRun.png");
+		ENEMY_TYPE.RAT.profile 		= preloadImageNoCanvas("assets/ratProfile.png");
+		ENEMY_TYPE.BAT.img 			= preloadImage("assets/batRun.png");
+		ENEMY_TYPE.BAT.profile 		= preloadImageNoCanvas("assets/batProfile.png");
+		ENEMY_TYPE.GATOR.img 		= preloadImage("assets/gatorRun.png");
 		ENEMY_TYPE.GATOR.profile 	= preloadImageNoCanvas("assets/gatorProfile.png");
 		//}
 		
 		//== Projectiles //{
-		PROJECTILE_TYPE.FIREBOLT.img 		= preloadImage("assets/firebolt.png");
-		PROJECTILE_TYPE.FIREGRENADE.img 	= preloadImage("assets/firegrenade.png");
+		PROJECTILE_TYPE.FIREBOLT.img 			= preloadImage("assets/firebolt.png");
+		PROJECTILE_TYPE.FIREGRENADE.img 		= preloadImage("assets/firegrenade.png");
 		PROJECTILE_TYPE.WATERBOLT.img 		= preloadImage("assets/waterbolt.png");
 		PROJECTILE_TYPE.WATERGRENADE.img	= preloadImage("assets/watergrenade.png");
-		PROJECTILE_TYPE.EARTHBOLT.img 		= preloadImage("assets/earthbolt.png");
+		PROJECTILE_TYPE.EARTHBOLT.img 			= preloadImage("assets/earthbolt.png");
 		PROJECTILE_TYPE.EARTHGRENADE.img 	= preloadImage("assets/earthgrenade.png");
 		PROJECTILE_TYPE.POISONBOLT.img 		= preloadImage("assets/poisonBolt.png");
 		//}
@@ -974,13 +982,13 @@ game.engine = (function(){
 		//}
 		
 		//== Waystones //{
-		BIOME.FOREST.WAYSTONE.img	= preloadImage("assets/waystoneForest.png");
-		BIOME.BOG.WAYSTONE.img		= preloadImage("assets/waystoneBog.png");
+		BIOME.FOREST.WAYSTONE.img		= preloadImage("assets/waystoneForest.png");
+		BIOME.BOG.WAYSTONE.img			= preloadImage("assets/waystoneBog.png");
 		BIOME.MOUNTAIN.WAYSTONE.img	= preloadImage("assets/waystoneMountain.png");
-		BIOME.CAVE.WAYSTONE.img		= preloadImage("assets/waystoneCave.png");
+		BIOME.CAVE.WAYSTONE.img			= preloadImage("assets/waystoneCave.png");
 		// Waystone overlays
-		BIOME.FOREST.WAYSTONE.overlayImg	= preloadImage("assets/waystoneForestOverlay.png");
-		BIOME.BOG.WAYSTONE.overlayImg		= preloadImage("assets/waystoneBogOverlay.png");
+		BIOME.FOREST.WAYSTONE.overlayImg		= preloadImage("assets/waystoneForestOverlay.png");
+		BIOME.BOG.WAYSTONE.overlayImg			= preloadImage("assets/waystoneBogOverlay.png");
 		BIOME.MOUNTAIN.WAYSTONE.overlayImg	= preloadImage("assets/waystoneMountainOverlay.png");
 		BIOME.CAVE.WAYSTONE.overlayImg		= preloadImage("assets/waystoneCaveOverlay.png");
 		//}
@@ -1016,9 +1024,10 @@ game.engine = (function(){
 				
 				// scale so parallax fits height-wise on screen
 				var imgScale = canvas.height/plxImg.height;
+				var imgWidth = plxImg.width*imgScale;
 				
-				for (var i = -((screenX*scalar) % (plxImg.width*imgScale)); i < canvas.width; i += (plxImg.width*imgScale)) {
-					context.drawImage(plxImg, i, 0, plxImg.width*imgScale, canvas.height);
+				for (var i = -((screenX*scalar) % (imgWidth)); i < canvas.width; i += (imgWidth)) {
+					context.drawImage(plxImg, i, 0, imgWidth, canvas.height);
 				}
 			context.restore();
 		}
